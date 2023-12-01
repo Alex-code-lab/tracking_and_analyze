@@ -5,6 +5,7 @@ Created on Wed Mar  1 12:46:56 2023.
 
 @author: souchaud
 """
+# %%
 import os
 import time
 import math
@@ -92,14 +93,53 @@ path_save_pic = f'{GENERAL_PATH}résultats_{CONDITION}_ALL_OK_x5_15s/'
 if not os.path.exists(path_save_pic):
     os.mkdir(path_save_pic)
 os.chdir(path_save_pic)
-# In[Lecture des données expérimentales]
+# %% [Lecture des données expérimentales]
 DATA = lib.read_hdf5_all(pathway_experiment=PATHWAY_EXPERIMENT,
                          condition=CONDITION, drift=DRIFT)
 # DATA = DATA[DATA['frame'] < 240]
 # In[Calcul des courbes à 80% des frames]
 print("before all procedure, we have: ")
 print(DATA.groupby('experiment')['particle'].nunique())
+ # %%
+def calculate_total_path_first_frames(dataframe, first_n_frames=10):
+    """
+    Calculate the total path length traveled by each cell over its first N frames.
 
+    :param dataframe: DataFrame containing cell tracking data with 'x', 'y', 'frame', 'particle' columns.
+    :param first_n_frames: Number of first frames to consider for each cell.
+    :return: DataFrame with total path length for the first N frames added.
+    """
+    # Sorting the dataframe
+    dataframe_sorted = dataframe.sort_values(by=['particle', 'frame'])
+    
+    # Function to calculate path length for the first N frames of each particle
+    def total_path_first_n_frames(group):
+        if len(group) < 2:
+            return 0
+        group_first_n = group.head(first_n_frames)
+        dx = np.diff(group_first_n['x'])
+        dy = np.diff(group_first_n['y'])
+        return np.sum(np.sqrt(dx**2 + dy**2))
+
+    # Applying the function to each group
+    total_paths = dataframe_sorted.groupby('particle').apply(total_path_first_n_frames)
+
+    # Mapping total path lengths back to the original dataframe
+    dataframe['total_path_first_n'] = dataframe['particle'].map(total_paths)
+
+    return dataframe
+
+# %%
+# Example usage
+path_data = calculate_total_path_first_frames(DATA, first_n_frames=100)
+plt.hist(path_data['total_path_first_n'], bins=300, range=[0, 50], density=True)
+
+# %%
+# Nombre de cellules avec un déplacement total inférieur à 10 sur les 20 premières frames
+num_cells_low_displacement = path_data[path_data['total_path_first_n'] < 18]['particle'].nunique()
+
+num_cells_low_displacement
+ # %%
 
 def select_data(DATA, nbr_frame_min):
     """
@@ -150,7 +190,7 @@ def select_data(DATA, nbr_frame_min):
 
     return DATA
 
-
+# %%
 # let's select the datas we want to study. For long time, we want to keep
 # experiment with at least 350 frames. This could be change easely.
 DATA = select_data(DATA=DATA, nbr_frame_min=200)
@@ -276,7 +316,7 @@ print(f"Le temps de lecture et de préparation des données pour la condition {C
       (time.time() - INITIAL_TIME)/60, 'min')
 print("\n"*2)
 
-# In[Compute the DATAS according to some parameters]
+# %% [Compute the DATAS according to some parameters]
 if ROLLING_MEAN:
     DATA = lib.rolling_mean(datas=DATA, roll=3)
 if PIXELISATION:
@@ -285,13 +325,13 @@ if TIME_FRAME_STUDY:
     DATA, TIME_FRAME = lib.keep_nth_image(traj=DATA, n=N_FRAME, time_frame=TIME_FRAME)
 
 # #############################################################################
-# In[Calculation of total and cumulative displacement]
+# %% [Calculation of total and cumulative displacement]
 # #############################################################################
 
 DATA, start_end = lib.length_displacement(traj=DATA, size_pix=SIZE_PIX)
 
 # #############################################################################
-# In[Recalcul du max displacement]
+# %% [Recalcul du max displacement]
 # ###################Erasing the suspicious displacements #####################
 grouped_data = DATA.groupby('particle')
 # Obtenir la valeur maximale de 'displacement' pour chaque groupe
@@ -307,13 +347,13 @@ if len(DATA_HIGH_DISP) > 0:
 # Erasing the spurious traectories with too high displacement
 DATA = DATA[~bool_mask]
 
-# In[MSD computation]
+# %% [MSD computation]
 IMSD = tp.imsd(traj=DATA[DATA['frame'] < 240],
                mpp=SIZE_PIX, fps=FPS,
                max_lagtime=200, statistic='msd',
                pos_columns=None)
 
-# In[Exclusion des particules de MSD constante]
+# %% [Exclusion des particules de MSD constante]
 print("\n"*2)
 print("Nombre de particules étudiées avant tri sur MSD : ", DATA['particle'].nunique())
 
@@ -330,7 +370,7 @@ print("Nombre de particules étudiées au final : ", DATA['particle'].nunique())
 # #############################################################################
 # #############################################################################
 
-# In[Plot all the trajectories]
+# %% [Plot all the trajectories]
 fig, axis = plt.subplots(figsize=(10, 10))
 # Assurer une échelle égale pour les axes
 axis.set_aspect('equal', 'box')
@@ -339,7 +379,7 @@ tp.plot_traj(DATA, label=(False))
 plt.show()
 fig.savefig(path_save_pic +
             'Trajectories after removing suspicious particles.jpg', format='jpg')
-# In[Plot all the trajectories]
+# %% [Plot all the trajectories]
 plot_exp = DATA.groupby('experiment')
 for exp_name, exp_data in plot_exp:
     fig, axis = plt.subplots(figsize=(10, 10))
@@ -348,7 +388,7 @@ for exp_name, exp_data in plot_exp:
     plt.title(f'Trajectories after suspicious particles for {exp_name}')
     tp.plot_traj(exp_data, label=(False))
     plt.show()
-# In[traj clustering with fit and defining a cutoff]
+# %% [traj clustering with fit and defining a cutoff]
 LAG_TIME_FIT = 5
 # Compute et plot the director factor of the imsd
 
@@ -370,7 +410,7 @@ DATA_SUP = DATA[DATA['particle'].isin(PART_COEF_SUP)]
 IMSD_INF = IMSD.loc[:, IMSD.columns.isin(PART_COEF_INF)]
 IMSD_SUP = IMSD.loc[:, IMSD.columns.isin(PART_COEF_SUP)]
 
-# In[Print datas]
+# %% [Print datas]
 print("\n"*2)
 if (len(DATA_SUP) != 0) & (len(DATA_INF) != 0):
     print("Résultats après premier tri cellulaire")
@@ -531,7 +571,7 @@ for exp_name, group in DATA.groupby('experiment'):
         round(proportion*100, 3)
         )
     print(output)
-# In[Mean speed]
+# %% [Mean speed]
 # Grouper les données par 'frame' et calculer la moyenne de 'VitInst [um/min]'
 mean_VitInst_per_frame = DATA.groupby('frame')['VitInst [um/min]'].mean()
 mean_VitInst_per_frame = mean_VitInst_per_frame.rolling(10).mean().dropna()
@@ -574,13 +614,13 @@ lib.plot_datas(x_values=mean_VitInst_per_frame_INF.index,
                                 },
                path_save_pic=path_save_pic, img_type="jpg")
 
-# In[Mean speed for each particle]
+# %% [Mean speed for each particle]
 
 lib.mean_speed(traj=DATA, start_end=start_end,
                part_coef_inf=PART_COEF_INF, part_coef_sup=PART_COEF_SUP,
                pathway_saving=path_save_pic, color_sup_inf=color_sup_inf)
 
-# In[Number of particle on each frame]
+# %% [Number of particle on each frame]
 
 # Grouper les données par 'frame' et calculer la moyenne de 'VitInst [um/min]'
 nbr_part_per_frame = DATA.groupby('frame')['particle'].nunique()
@@ -591,7 +631,7 @@ lib.plot_datas(x_values=nbr_part_per_frame.index, y_values=nbr_part_per_frame.va
                x_lim=[0, 1000], y_lim=[0, 20000], save=True,
                path_save_pic=path_save_pic, img_type="jpg")
 
-# In[plot the trajectories centered]
+# %%[plot the trajectories centered]
 lib.plot_centered_traj_inf_sup(traj=DATA, size_pix=SIZE_PIX,
                                PART_INF=PART_COEF_INF, PART_SUP=PART_COEF_SUP,
                                name='Trajectories recentered one color',
@@ -621,7 +661,7 @@ if len(DATA_SUP) > 0:
                            color=COLOR_SUP,
                            )
 
-# In[gif for centered traj]
+# %% [gif for centered traj]
 
 
 def gif_centered_traj(data: pd.DataFrame(), path_save_pic: str,
@@ -691,7 +731,7 @@ if len(DATA_INF) > 0:
                  fps=FPS, name='MSD of particles with low slope', color_plot=color_sup_inf[1],
                  save=True, pathway_saving=path_save_pic, alpha=ALPHA, linewidth=LINEWIDTH)
 
-# In[Compute and plot the EMSD]
+# %% [Compute and plot the EMSD]
 
 if len(DATA_INF) == 0:
     DATA_INF = pd.DataFrame()
@@ -713,7 +753,7 @@ if len(DATA_INF) > 0:
                      fps=FPS, name='MSD with low slope and sup at 10 at t0',
                      save=False, pathway_saving=path_save_pic, alpha=1, linewidth=0.5)
 
-# In[GIF]
+# %% [GIF]
 # #############################################################################
 # ################################## GIF ######################################
 # ############################################################################

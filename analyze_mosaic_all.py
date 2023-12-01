@@ -26,7 +26,6 @@ init(autoreset=True)
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", category=FutureWarning)
 
-
 # In[VARIABLE DEFINITION]
 # set initial time
 INITIAL_TIME = time.time()
