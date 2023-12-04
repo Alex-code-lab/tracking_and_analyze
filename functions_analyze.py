@@ -13,6 +13,8 @@ import random
 import pims
 import re
 import numpy as np
+import glob
+import shutil
 import matplotlib.pyplot as plt
 import trackpy as tp
 import pandas as pd
@@ -1125,6 +1127,128 @@ def gif_and_traj(data: pd.DataFrame(), size_pix: float, condition: str, experime
             fig.savefig(pathway_saving + '/' + PARTICLE_INFOS['experiment'] + '_' +
                         PARTICLE_INFOS['position'] + '_' +
                         str(PARTICLE_INFOS['particle']) + '.' + img_type, format=img_type)
+
+
+from PIL import Image
+
+def create_cropped_tracking_gif(datas: pd.DataFrame, target_particle: int,
+                                condition: str, crop_size: int = 100, 
+                                dot_size: int = 15, gif: bool = False,
+                                pathway_saving: str = None):
+    """
+    Creates cropped images around a target particle and saves them as a GIF.
+
+    Parameters
+    ----------
+    datas : pd.DataFrame
+        Dataframe containing the tracking information.
+    target_particle: int
+        Particle number to focus on.
+    condition: str
+        Name of the condition for the particle to focus on.
+    crop_size: int
+        Size of the crop around the particle (in pixels).
+        Default is 100.
+    dot_size: int
+        Size of the dot representing the particle.
+        Default is 15.
+    gif: bool
+        If True, pictures will be saved as gif too.
+        Default is False. 
+    pathway_saving: str
+        Absolute path to save images.
+    Returns
+    -------
+    None.
+    """
+    particle_infos=datas[datas['particle'] == target_particle].iloc[0].to_dict()
+    motif = particle_infos['experiment']
+    dossier_manip = glob.glob(f'/Users/souchaud/Desktop/A_analyser/{condition}/*' + motif + '*') 
+    if len(dossier_manip) == 1:
+        pathway_experiment = dossier_manip[0] +  '/mosaic/'
+    else:
+        print("No such file")
+        return
+    if pathway_saving is None:
+        path = '/users/souchaud/Desktop/Analyses/gif_particle_seule/'
+        if not os.path.exists(path):
+            os.mkdir(path)
+        pathway_saving = path + f'/{condition}_{motif}_part_n{target_particle}/'
+    
+    # Create saving directory if it doesn't exist
+    if not os.path.exists(pathway_saving):
+        os.makedirs(pathway_saving)
+    else:
+        for filename in os.listdir(pathway_saving):
+            file_path = os.path.join(pathway_saving, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print('Failed to delete %s. Reason: %s' % (file_path, e))
+
+    # Filter data for the target particle
+    traj = datas[(datas['experiment'] == particle_infos['experiment']) & 
+                 (datas['position'] == particle_infos['position']) & 
+                 (datas['particle'] == target_particle)]
+
+    # Path to the experiment images
+    experiment_path = pathway_experiment #  os.path.join(pathway_experiment, particle_infos['experiment'], 
+                                         # particle_infos['position'])
+
+    # Process each frame
+    cropped_images = []
+    frame_data_init = traj.iloc[0]
+    x_0, y_0 = int(frame_data_init['x']), int(frame_data_init['y'])
+    for frame_number in range(traj['frame'].min(), traj['frame'].max() + 1):
+        # Get the position of the particle in the current frame
+        frame_data = traj[traj['frame'] == frame_number]
+        if frame_data.empty:
+            continue
+
+        # Load the image
+        image_path = os.path.join(experiment_path, f"mosaic_total_{frame_number}.tif")
+        with Image.open(image_path) as img:
+            # Crop the image around the particle
+            left = max(0, x_0 - crop_size // 2)
+            upper = max(0, y_0 - crop_size // 2)
+            right = min(img.width, x_0 + crop_size // 2)
+            lower = min(img.height, y_0 + crop_size // 2)
+
+            cropped_img = img.crop((left, upper, right, lower))
+
+            # Convert to NumPy array for plotting
+            cropped_img_np = np.array(cropped_img)
+            
+            # center of mass of the cell
+            x, y = int(frame_data['x']), int(frame_data['y'])
+
+            # Draw the center of mass
+            fig, ax = plt.subplots()
+            ax.imshow(cropped_img_np, cmap='gray')
+            ax.plot(int(x-x_0) + crop_size// 2, int(y-y_0) + crop_size // 2, 'ro', markersize=dot_size)  # Center of the crop
+            ax.axis('off')
+
+            # Save the figure
+            cropped_img_path = os.path.join(pathway_saving, f"cropped_{frame_number}.png")
+            plt.savefig(cropped_img_path, bbox_inches='tight')
+            plt.close(fig)
+
+            cropped_images.append(cropped_img_path)
+
+    #Create GIF
+    if gif == True:
+        with Image.open(cropped_images[0]) as first_image:
+            first_image.save(os.path.join(pathway_saving, f"tracking_particle_{target_particle}.gif"),
+                            format='GIF',
+                            append_images=[Image.open(img_path) for img_path in cropped_images[1:]],
+                            save_all=True,
+                            duration=200,  # duration between frames in milliseconds
+                            loop=0)
+
+        print(f"GIF saved at {pathway_saving}")
 
 
 # for num in range(0, len(frames), 1):
