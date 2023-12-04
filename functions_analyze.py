@@ -1281,9 +1281,10 @@ def gif_and_traj(data: pd.DataFrame(), size_pix: float, condition: str, experime
 
 
 def create_cropped_tracking_gif(datas: pd.DataFrame, target_particle: int,
-                                condition: str, crop_size: int = 100, 
+                                condition: str, crop_size: int = None, 
                                 dot_size: int = 15, gif: bool = False,
-                                pathway_saving: str = None):
+                                pathway_saving: str = None,
+                                pathway_initial: str = None):
     """
     Creates cropped images around a target particle and saves them as a GIF.
 
@@ -1312,12 +1313,16 @@ def create_cropped_tracking_gif(datas: pd.DataFrame, target_particle: int,
     """
     particle_infos=datas[datas['particle'] == target_particle].iloc[0].to_dict()
     motif = particle_infos['experiment']
-    dossier_manip = glob.glob(f'/Users/souchaud/Desktop/A_analyser/{condition}/*' + motif + '*') 
+    if pathway_initial is None:
+        pathway_initial = '/Users/souchaud/Desktop/A_analyser/'
+
+    dossier_manip = glob.glob(f'{pathway_initial}{condition}/*' + motif + '*') 
     if len(dossier_manip) == 1:
         pathway_experiment = dossier_manip[0] +  '/mosaic/'
     else:
         print("No such file")
         return
+        
     if pathway_saving is None:
         path = '/users/souchaud/Desktop/Analyses/gif_particle_seule/'
         if not os.path.exists(path):
@@ -1350,7 +1355,9 @@ def create_cropped_tracking_gif(datas: pd.DataFrame, target_particle: int,
     # Process each frame
     cropped_images = []
     frame_data_init = traj.iloc[0]
-    x_0, y_0 = int(frame_data_init['x']), int(frame_data_init['y'])
+    if crop_size is not None:
+        x_0, y_0 = int(frame_data_init['x']), int(frame_data_init['y'])
+
     for frame_number in range(traj['frame'].min(), traj['frame'].max() + 1):
         # Get the position of the particle in the current frame
         frame_data = traj[traj['frame'] == frame_number]
@@ -1360,24 +1367,37 @@ def create_cropped_tracking_gif(datas: pd.DataFrame, target_particle: int,
         # Load the image
         image_path = os.path.join(experiment_path, f"mosaic_total_{frame_number}.tif")
         with Image.open(image_path) as img:
-            # Crop the image around the particle
-            left = max(0, x_0 - crop_size // 2)
-            upper = max(0, y_0 - crop_size // 2)
-            right = min(img.width, x_0 + crop_size // 2)
-            lower = min(img.height, y_0 + crop_size // 2)
-
-            cropped_img = img.crop((left, upper, right, lower))
-
-            # Convert to NumPy array for plotting
-            cropped_img_np = np.array(cropped_img)
-            
-            # center of mass of the cell
-            x, y = int(frame_data['x']), int(frame_data['y'])
+            x_max, y_max = img.size
+            if crop_size is not None and crop_size > 0:
+                # Crop the image around the particle
+                left = max(0, x_0 - crop_size // 2)
+                upper = max(0, y_0 - crop_size // 2)
+                right = min(img.width, x_0 + crop_size // 2)
+                lower = min(img.height, y_0 + crop_size // 2)
+                if left < 0: left = 0
+                if right > x_max: right = x_max
+                if upper < 0: upper = 0
+                if lower > y_max: lower = y_max
+                    # Vérifier que les coordonnées de crop sont valides
+                if left < right and upper < lower:
+                    cropped_img = img.crop((left, upper, right, lower))
+                else:
+                    print(f"Coordonnées de crop invalides pour la frame {frame_number}.")
+                    continue
+                
+                # center of mass of the cell
+                x, y = int(frame_data['x']), int(frame_data['y'])
+                rel_x, rel_y = x - left, y - upper
+            else:
+                # Utiliser toute l'image
+                cropped_img = img
+                x, y = int(frame_data['x']), int(frame_data['y'])
+                rel_x, rel_y = x, y
 
             # Draw the center of mass
             fig, ax = plt.subplots()
-            ax.imshow(cropped_img_np, cmap='gray')
-            ax.plot(int(x-x_0) + crop_size// 2, int(y-y_0) + crop_size // 2, 'ro', markersize=dot_size)  # Center of the crop
+            ax.imshow(cropped_img, cmap='gray')
+            ax.plot(rel_x, rel_y, 'ro', markersize=dot_size)  # Center of the crop
             ax.axis('off')
 
             # Save the figure
