@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import trackpy as tp
 import pandas as pd
 from skimage import io
+from PIL import Image
 from scipy.stats import norm
 from scipy import stats
 from scipy.signal import find_peaks
@@ -71,6 +72,155 @@ def import_img_sequences(path, first_frame=0, last_frame=240, file_extension='.t
     plt.title("Image binaire", fontsize=40, fontweight="bold", fontstyle='italic', fontname="Arial")
     io.imshow(frames[0])
     return frames
+
+
+def calculate_total_path_first_frames(dataframe, first_n_frames=10):
+    """
+    Calculate the total path length traveled by each cell over its first N frames.
+
+    :param dataframe: DataFrame containing cell tracking data with 'x', 'y', 'frame', 'particle' columns.
+    :param first_n_frames: Number of first frames to consider for each cell.
+    :return: DataFrame with total path length for the first N frames added.
+    """
+    # Sorting the dataframe
+    dataframe_sorted = dataframe.sort_values(by=['particle', 'frame'])
+    
+    # Function to calculate path length for the first N frames of each particle
+    def total_path_first_n_frames(group):
+        if len(group) < 2:
+            return 0
+        group_first_n = group.head(first_n_frames)
+        dx = np.diff(group_first_n['x'])
+        dy = np.diff(group_first_n['y'])
+        return np.sum(np.sqrt(dx**2 + dy**2))
+
+    # Applying the function to each group
+    total_paths = dataframe_sorted.groupby('particle').apply(total_path_first_n_frames)
+
+    # Mapping total path lengths back to the original dataframe
+    dataframe['total_path_first_n'] = dataframe['particle'].map(total_paths)
+
+    return dataframe
+
+def select_data(DATA, nbr_frame_min):
+    """
+    Select the datas we want to study.
+
+    Parameters
+    ----------
+    DATA : DataFrame
+        Trajectories.
+    nbr_frame_min : int
+
+    Returns
+    -------
+    DATA : DataFrame
+        trajectories filtred.
+
+    """
+    # On compte le nombre de frames pour chaque particule dans chaque expérience
+    counts = DATA.groupby(['experiment', 'particle']).size()
+    # On fait la liste des particles que l'on souhaite garder, cad qui sont suivies
+    # sur au moins "nbr_frame_min" images.
+    particles_to_keep = counts[counts >= nbr_frame_min].reset_index()
+    # On récupères les données de ces particules uniquement.
+    DATA = DATA.merge(particles_to_keep, on=['experiment', 'particle'])
+
+    # On compte le nombre de frames pour chaque expérience
+    total_frames_per_experiment = DATA.groupby('experiment')['frame'].nunique()
+
+    # On calcule le seuil pour chaque expérience (60% du nombre total de frames)
+    threshold = total_frames_per_experiment * 0.6
+    threshold = threshold.astype(int)
+
+    # On garde uniquement les particules qui ont un nombre de frames supérieur
+    # au seuil pour chaque expérience : c'est un deuxième seuil.
+    filtered_particles = counts[
+        counts > threshold.reindex(counts.index, level=0)].reset_index()
+
+    # On filtre le DataFrame original pour garder uniquement les particules sélectionnées
+    DATA = DATA.merge(filtered_particles, on=['experiment', 'particle'])
+
+    # # ## JE DECIDE DE GARDER UNIQUEMENT LES EXPERIENCES AVEC PLUS DE X FRAMES ####
+    # # Step 1: Identify experiments with max frame > 500
+    # valid_experiments = DATA.groupby('experiment')['frame'].max()
+    # valid_experiments = valid_experiments[valid_experiments > nbr_frame_min].index
+
+    # # Step 2: Filter the DataFrame to keep rows associated with those experiments
+    # DATA = DATA[DATA['experiment'].isin(valid_experiments)]
+
+    return DATA
+
+def find_swaps_with_return(data_frame):
+    """
+    Find and delete suspicious movements.
+
+    Identify and return the indices of rows in a DataFrame that represent suspicious
+    movements in particle trajectories, indicative of swaps. These suspicious movements
+    are those where a particle makes a large jump, significantly more than the average
+    movement in the experiment, and then returns to a location near its original position.
+
+    Parameters
+    ----------
+    data_frame (pd.DataFrame): A DataFrame containing the particle tracking data.
+        It must include the columns 'particle', 'frame', 'x', and 'y', representing
+        the particle identifier, the frame number, and the x and y coordinates
+        of the particle, respectively
+
+    Returns
+    -------
+    list: Indices of the rows in the original DataFrame where suspicious movements,
+        potentially indicative of tracking swaps, occur.
+
+    Note:
+    - The function detects swaps by identifying large jumps that return close to
+      the original location.
+    - The definition of 'close' should be adjusted based on the context of the experiment and the
+      expected behavior of the particles.
+    """
+    # Placeholder for the indices of suspicious movements
+    swap_indices = []
+
+    # Calculate movement distances and keep original index to reference later
+    data_frame['dx'] = data_frame.groupby('particle')['x'].diff()
+    data_frame['dy'] = data_frame.groupby('particle')['y'].diff()
+    data_frame['dist'] = np.sqrt(data_frame['dx']**2 + data_frame['dy']**2)
+
+    # Calculate the mean and standard deviation for the entire experiment
+    mean_dist_experiment = data_frame['dist'].mean()
+    std_dist_experiment = data_frame['dist'].std()
+
+    # Group by particle to analyze each trajectory
+    grouped = data_frame.groupby('particle')
+
+    for particle, group in grouped:
+        group = group.sort_values(by='frame')  # ensure the group is sorted by frame
+
+        # Check each point in the trajectory
+        for i in range(1, len(group) - 1):
+            # We skip the first and last points, as they cannot form a "return" trajectory
+
+            prev_point = group.iloc[i - 1]
+            current_point = group.iloc[i]
+            next_point = group.iloc[i + 1]
+
+            # Calculate the distances for the potential out-and-back
+            dist_out = np.sqrt((current_point['x'] - prev_point['x'])**2 +
+                               (current_point['y'] - prev_point['y'])**2)
+            dist_back = np.sqrt((next_point['x'] - current_point['x'])**2 +
+                                (next_point['y'] - current_point['y'])**2)
+
+            # Check if the "out" distance is large enough to be suspicious
+            if dist_out > mean_dist_experiment + 2 * std_dist_experiment:
+                # Now check if the "back" distance is small enough to indicate a return
+                # The threshold for "returning close" can be adjusted.
+                # Here we use the mean distance for the experiment.
+                if dist_back < mean_dist_experiment:
+                    # This trajectory is suspicious. Save the index of the "out" point.
+                    swap_indices.append(current_point.name)  # 'name' of the row is its original idx
+
+    # Return the list of indices corresponding to suspicious movements
+    return swap_indices
 
 
 # In[MSD]
@@ -1129,7 +1279,6 @@ def gif_and_traj(data: pd.DataFrame(), size_pix: float, condition: str, experime
                         str(PARTICLE_INFOS['particle']) + '.' + img_type, format=img_type)
 
 
-from PIL import Image
 
 def create_cropped_tracking_gif(datas: pd.DataFrame, target_particle: int,
                                 condition: str, crop_size: int = 100, 
