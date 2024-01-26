@@ -30,25 +30,6 @@ from typing import List, Optional, Union, Any, Dict, Tuple
 
 plt.rcParams['figure.max_open_warning'] = 50
 
-# In[Import functions]
-# def import_img_sequences(path, first_frame=0, last_frame=240):
-#     """
-#     Pims allowed to load the pictures .
-
-#     Parameters
-#     ----------
-#     path : path to the picrtures field.
-
-#     Returns
-#     -------
-#     Frames : all frames.
-#     """
-#     frames = pims.ImageSequence(path)[first_frame:last_frame]
-#     plt.figure(figsize=(20, 20))
-#     plt.title("Image binaire", fontsize=40, fontweight="bold", fontstyle='italic', fontname="Arial")
-#     io.imshow(frames[0])
-#     return frames
-
 def import_img_sequences(path, first_frame=0, last_frame=240, file_extension='.tif'):
     """
     Pims allowed to load the pictures.
@@ -72,6 +53,80 @@ def import_img_sequences(path, first_frame=0, last_frame=240, file_extension='.t
     plt.title("Image binaire", fontsize=40, fontweight="bold", fontstyle='italic', fontname="Arial")
     io.imshow(frames[0])
     return frames
+
+
+def read_hdf5_all(pathway_experiment, condition, name_file='filtered',
+                  nbr_frame_min=200, drift=False):
+    """
+    Read all the traj files of one experiment.
+
+    Parameters
+    ----------
+    pathway_experiment : string
+        absolute path to the traj hdf5 files.
+    condition : str
+        specific condition of the experiment.
+
+    Returns
+    -------
+    data : pd.DataFrame()
+        DataFrame of the trajectories info, with new columns (renum particle
+        positions, and experiment name)
+
+    """
+    data_all = pd.DataFrame()
+    last_part_num = 0
+    # Boucle pour chaque chemin de répertoire de position
+    for path in pathway_experiment:
+        data_exp = pd.DataFrame()
+        # Récupération du nom de la manipulation à partir du chemin
+        manip_name = re.search('ASMOT[0-9]{3}', path).group()
+
+        list_files_to_read = [path + f for f in os.listdir(path)
+                              if f.endswith(".hdf5") and f'{name_file}' in f]
+        print(list_files_to_read)
+        list_fields_positions = [re.sub('.hdf5', '', re.sub(path, '', f))
+                                 for f in list_files_to_read]
+        # Boucle pour chaque fichier
+        for f, position in zip(list_files_to_read, list_fields_positions):
+            # print(f, position)
+            # Lecture des données depuis le fichier
+            try:
+                data = pd.read_hdf(f, key='table')  # Remove the comma at the end
+            except ValueError:
+                continue
+
+            # On compte le nombre de frames pour chaque particule dans chaque expérience
+            counts = data.groupby(['particle']).size()
+            particles_to_keep = counts[counts >= nbr_frame_min].reset_index()
+            data = data.merge(particles_to_keep, on=['particle'])
+            data = data.rename(columns={'particle': 'old_particle'})
+            # Renumerotation des particules
+            data['particle'], _ = pd.factorize(data['old_particle'])
+            data['particle'] += last_part_num
+            # Ajout de la colonne "experiment"
+            data["experiment"] = manip_name
+            # Ajout de la colonne "position"
+            data["position"] = position
+            data_exp = pd.concat([data, data_exp])
+            if len(data_all) != 0:
+                last_part_num = data_all['particle'].max() + data_exp['particle'].nunique() + 1
+            else:
+                last_part_num = data_exp['particle'].nunique()
+        if drift:
+            data_exp = remove_drift(traj=data_exp, smooth=2,
+                                    save=True, pathway_saving=path,
+                                    name=manip_name + '_' + position)
+            data_exp = data_exp.drop('frame', axis=1)
+            data_exp = data_exp.reset_index()
+        data_all = pd.concat([data_all, data_exp])
+        data_all = data_all.reset_index()
+        data_all = data_all.drop('index', axis=1)
+        print(manip_name, " : ", data_exp['particle'].nunique())
+    data_all['condition'] = condition
+    print("Nombre de particules récoltées avant tri: ", data_all['particle'].nunique())
+    # Retour des données concaténées
+    return data_all
 
 
 def calculate_total_path_first_frames(dataframe, first_n_frames=10):
@@ -101,6 +156,7 @@ def calculate_total_path_first_frames(dataframe, first_n_frames=10):
     dataframe['total_path_first_n'] = dataframe['particle'].map(total_paths)
 
     return dataframe
+
 
 def select_data(DATA, nbr_frame_min):
     """
@@ -150,6 +206,7 @@ def select_data(DATA, nbr_frame_min):
     # DATA = DATA[DATA['experiment'].isin(valid_experiments)]
 
     return DATA
+
 
 def find_swaps_with_return(data_frame):
     """
@@ -221,7 +278,6 @@ def find_swaps_with_return(data_frame):
 
     # Return the list of indices corresponding to suspicious movements
     return swap_indices
-
 
 # In[MSD]
 
@@ -418,8 +474,7 @@ def plot_msd_depending_on_sorting(liste_msd, colors, fps, pathway_saving, img_ty
     # Enregistrer le graphique en tant que fichier svg dans le chemin spécifié.
     fig.savefig(f'{pathway_saving}All_MSD_frames.' + img_type, format=img_type, save=False)
 
-
-# In[In]
+# In[Analyse]
 def remove_drift(traj, smooth, save=False, pathway_saving=None, name=None, img_type="jpg"):
     """
     Remove overall drift motion.
@@ -652,17 +707,14 @@ def vit_instant_new(traj, lag_time, pix_size, triage):
     return traj_copy
 
 
-###############################################################################
-# Cette fonction permet de garder uniquement les valeurs dune image sur nbre_frame.
-# L'objectif est de pouvoir faire le tracking sur toutes les images et donc avoir
-# une fiabilité du tracking, tout en traitant moins de données qui semblent fausser
-# les résultats.
-###############################################################################
-
-
 def keep_nth_image(traj: pd.DataFrame(), n: int, time_frame: int):
     """
     Keep only 1 frame every n frame.
+
+    Cette fonction permet de garder uniquement les valeurs dune image sur nbre_frame.
+    L'objectif est de pouvoir faire le tracking sur toutes les images et donc avoir
+    une fiabilité du tracking, tout en traitant moins de données qui semblent fausser
+    les résultats.
 
     Parameters
     ----------
@@ -683,82 +735,6 @@ def keep_nth_image(traj: pd.DataFrame(), n: int, time_frame: int):
     d_f = d_f.drop(columns='index', axis=1)
     time_frame = n*time_frame
     return d_f, time_frame
-
-# In[Evolution of the mean spead of the frame, frame by frame]
-
-
-def read_hdf5_all(pathway_experiment, condition, name_file='filtered',
-                  nbr_frame_min=200, drift=False):
-    """
-    Read all the traj files of one experiment.
-
-    Parameters
-    ----------
-    pathway_experiment : string
-        absolute path to the traj hdf5 files.
-    condition : str
-        specific condition of the experiment.
-
-    Returns
-    -------
-    data : pd.DataFrame()
-        DataFrame of the trajectories info, with new columns (renum particle
-        positions, and experiment name)
-
-    """
-    data_all = pd.DataFrame()
-    last_part_num = 0
-    # Boucle pour chaque chemin de répertoire de position
-    for path in pathway_experiment:
-        data_exp = pd.DataFrame()
-        # Récupération du nom de la manipulation à partir du chemin
-        manip_name = re.search('ASMOT[0-9]{3}', path).group()
-
-        list_files_to_read = [path + f for f in os.listdir(path)
-                              if f.endswith(".hdf5") and f'{name_file}' in f]
-        print(list_files_to_read)
-        list_fields_positions = [re.sub('.hdf5', '', re.sub(path, '', f))
-                                 for f in list_files_to_read]
-        # Boucle pour chaque fichier
-        for f, position in zip(list_files_to_read, list_fields_positions):
-            # print(f, position)
-            # Lecture des données depuis le fichier
-            try:
-                data = pd.read_hdf(f, key='table')  # Remove the comma at the end
-            except ValueError:
-                continue
-
-            # On compte le nombre de frames pour chaque particule dans chaque expérience
-            counts = data.groupby(['particle']).size()
-            particles_to_keep = counts[counts >= nbr_frame_min].reset_index()
-            data = data.merge(particles_to_keep, on=['particle'])
-            data = data.rename(columns={'particle': 'old_particle'})
-            # Renumerotation des particules
-            data['particle'], _ = pd.factorize(data['old_particle'])
-            data['particle'] += last_part_num
-            # Ajout de la colonne "experiment"
-            data["experiment"] = manip_name
-            # Ajout de la colonne "position"
-            data["position"] = position
-            data_exp = pd.concat([data, data_exp])
-            if len(data_all) != 0:
-                last_part_num = data_all['particle'].max() + data_exp['particle'].nunique() + 1
-            else:
-                last_part_num = data_exp['particle'].nunique()
-        if drift:
-            data_exp = remove_drift(traj=data_exp, smooth=2,
-                                    save=True, pathway_saving=path,
-                                    name=manip_name + '_' + position)
-            data_exp = data_exp.drop('frame', axis=1)
-            data_exp = data_exp.reset_index()
-        data_all = pd.concat([data_all, data_exp])
-        data_all = data_all.reset_index()
-        data_all = data_all.drop('index', axis=1)
-        print(manip_name, " : ", data_exp['particle'].nunique())
-    data_all['condition'] = condition
-    print("Nombre de particules récoltées avant tri: ", data_all['particle'].nunique())
-    # Retour des données concaténées
-    return data_all
 
 
 def get_subplot_dimensions(n_positions):
@@ -1519,8 +1495,8 @@ def create_cropped_tracking_gif(datas: pd.DataFrame, target_particle: int = None
         print(f"GIF saved at {pathway_saving}")
 
     return
-# for num in range(0, len(frames), 1):
-#     print(traj.query(f'frame == {num} and old_particle == {particule}')['x'])
+
+
 def subtract_first_last(df: pd.DataFrame(), axis='x'):
     """
     Substract de last line with the first ligne.
@@ -1733,60 +1709,6 @@ def plot_displacement_low_and_high(traj_sup: pd.DataFrame, traj_inf: pd.DataFram
                     format=img_type)
 
     # Additional plots and savings not included due to length restrictions
-
-
-# def plot_centered_traj(traj: pd.DataFrame(), size_pix: float, name='Trajectories recentered',
-#                        xlim: list = [-300, 300], ylim: list = [-300, 300],
-#                        color: str = None, save=False, pathway_fig=None, img_type="jpg"):
-#     """
-#     Plot centered trajectories.
-
-#     Parameters
-#     ----------
-#     traj : pd.DataFrame()
-#         DESCRIPTION.
-#     size_pix : float
-#         DESCRIPTION.
-#     name : TYPE, optional
-#         DESCRIPTION. The default is 'Trajectories recentered'.
-#     save : TYPE, optional
-#         DESCRIPTION. The default is False.
-#     pathway_fig : TYPE, optional
-#         DESCRIPTION. The default is None.
-
-#     Returns
-#     -------
-#     None.
-
-#     """
-#     traj_copy = traj.copy()
-#     traj_copy.loc[:, ['Xc [pix]', 'Yc [pix]']] = traj_copy.loc[:, ['Xc [pix]', 'Yc [pix]']]*size_pix
-#     traj = traj_copy
-#     # traj.loc[:, ['Xc [pix]', 'Yc [pix]']] = traj.loc[:, ['Xc [pix]', 'Yc [pix]']]*size_pix
-#     if color is None:
-#         fig, ax = plt.subplots(figsize=(30, 30))
-#         plt.title(name, fontsize=40, fontweight="bold", fontstyle='italic', fontname="Arial")
-#         tp.plot_traj(traj, pos_columns=['Xc [pix]', 'Yc [pix]'], ax=ax,  color=color,
-#                      linewidth=0.2, alpha=0.5)
-#         ax.set(xlabel='Xc (µm)', ylabel='Yc(µm)')
-#         ax.set_xlim(xlim)
-#         ax.set_ylim(ylim)
-#         ax.tick_params(axis='both', which='major', labelsize=20)
-#     else:
-#         fig, ax = plt.subplots(figsize=(30, 30))
-#         plt.title(name, fontsize=40, fontweight="bold", fontstyle='italic', fontname="Arial")
-#         unique_particles = traj['particle'].unique()
-#         for particle in unique_particles:
-#             single_traj = traj[traj['particle'] == particle]
-#             ax.plot(single_traj['Xc [pix]'], single_traj['Yc [pix]'], color=color)
-#         # tp.plot_traj(traj, pos_columns=['Xc [pix]', 'Yc [pix]'], ax=ax, color=color)
-#         ax.set(xlabel='Xc (µm)', ylabel='Yc(µm)')
-#         ax.set_xlim(xlim)
-#         ax.set_ylim(ylim)
-#         ax.tick_params(axis='both', which='major', labelsize=20)
-
-#     if save:
-#         fig.savefig(pathway_fig + f'{name}.{img_type}', format=img_type)
 
 
 def plot_centered_traj(traj: pd.DataFrame, size_pix: float, name='Trajectories recentered',
