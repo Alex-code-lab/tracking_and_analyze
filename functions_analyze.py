@@ -96,6 +96,15 @@ def read_hdf5_all(pathway_experiment, condition, name_file='filtered',
             except ValueError:
                 continue
 
+            if name_file == 'features':
+                data = tp.link_df(data,
+                                  search_range=60,  # PARAMS['max_displacement'],
+                                  memory=15,
+                                  neighbor_strategy='KDTree',
+                                  link_strategy='auto',  # 'hybrid',
+                                  adaptive_stop=30,
+                                  # verify_integritxy=True,
+                                  )
             # On compte le nombre de frames pour chaque particule dans chaque expérience
             counts = data.groupby(['particle']).size()
             particles_to_keep = counts[counts >= nbr_frame_min].reset_index()
