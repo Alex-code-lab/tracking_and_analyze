@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import trackpy as tp
 import pandas as pd
 from skimage import io
-from PIL import Image
+from PIL import Image, ImageDraw
 from scipy.stats import norm
 from scipy import stats
 from scipy.signal import find_peaks
@@ -56,7 +56,8 @@ def import_img_sequences(path, first_frame=0, last_frame=240, file_extension='.t
 
 
 def read_hdf5_all(pathway_experiment, condition, name_file='filtered',
-                  nbr_frame_min=200, drift=False):
+                  nbr_frame_min=200, drift=False, search_range: int = 120,
+                  memory: int = 15):
     """
     Read all the traj files of one experiment.
 
@@ -98,8 +99,8 @@ def read_hdf5_all(pathway_experiment, condition, name_file='filtered',
 
             if name_file == 'features':
                 data = tp.link_df(data,
-                                  search_range=60,  # PARAMS['max_displacement'],
-                                  memory=15,
+                                  search_range=search_range,  # PARAMS['max_displacement'],
+                                  memory=memory,
                                   neighbor_strategy='KDTree',
                                   link_strategy='auto',  # 'hybrid',
                                   adaptive_stop=30,
@@ -1405,8 +1406,111 @@ def create_cropped_tracking_gif0(datas: pd.DataFrame, target_particle: int,
         print(f"GIF saved at {pathway_saving}")
 
 
-
 def create_cropped_tracking_gif(datas: pd.DataFrame, target_particle: int = None,
+                                condition: str = None, crop_size: int = None, 
+                                dot_size: int = 15, gif: bool = False,
+                                pathway_saving: str = None,
+                                pathway_initial: str = None):
+    """
+    Creates cropped images around a target particle and saves them as a GIF or individual images.
+    """
+    if not isinstance(datas, pd.DataFrame):
+        raise ValueError("Data must be a pandas DataFrame.")
+
+    if pathway_initial is None:
+        pathway_initial = '/Users/souchaud/Desktop/A_analyser/'
+
+    dossier_manip = glob.glob(f'{pathway_initial}{condition}/*') 
+    if not dossier_manip:
+        print("No such file")
+        return
+    pathway_experiment = dossier_manip[0] + '/mosaic/'
+
+    if pathway_saving is None:
+        path = '/users/souchaud/Desktop/Analyses/gif_particle_seule/'
+        os.makedirs(path, exist_ok=True)
+        pathway_saving = path + f'/{condition}_part_n{target_particle}/'
+
+    os.makedirs(pathway_saving, exist_ok=True)
+
+    for filename in os.listdir(pathway_saving):
+        file_path = os.path.join(pathway_saving, filename)
+        if os.path.isfile(file_path) or os.path.islink(file_path):
+            os.unlink(file_path)
+        elif os.path.isdir(file_path):
+            shutil.rmtree(file_path)
+
+    if target_particle is None and crop_size is None:
+        for frame_number in range(datas['frame'].min(), datas['frame'].max() + 1):
+            image_path = os.path.join(pathway_experiment, f"mosaic_total_{frame_number}.tif")
+            with Image.open(image_path) as img:
+                # Convert image to RGBA to support transparency
+                img = img.convert("RGBA")
+                draw = ImageDraw.Draw(img)
+
+                frame_data = datas[datas['frame'] == frame_number]
+                for _, particle in frame_data.iterrows():
+                    # Define a red color with transparency
+                    red_transparent = (255, 0, 0, 50)  # RGBA: Red with 100* 50/250 % transparency
+                    draw.ellipse([(particle['x'] - dot_size / 2, particle['y'] - dot_size / 2),
+                                  (particle['x'] + dot_size / 2, particle['y'] + dot_size / 2)],
+                                  fill=red_transparent)
+
+                output_path = os.path.join(pathway_saving, f"frame_{frame_number}.png")
+                img.save(output_path, format="PNG")
+
+    elif target_particle is not None and crop_size is not None:
+        particle_infos = datas[datas['particle'] == target_particle].iloc[0].to_dict()
+        traj = datas[(datas['experiment'] == particle_infos['experiment']) & 
+                     (datas['position'] == particle_infos['position']) & 
+                     (datas['particle'] == target_particle)]
+
+        frame_data_init = traj.iloc[0]
+        x_0, y_0 = int(frame_data_init['x']), int(frame_data_init['y'])
+
+        for frame_number in range(traj['frame'].min(), traj['frame'].max() + 1):
+            frame_data = traj[traj['frame'] == frame_number]
+            if frame_data.empty:
+                continue
+
+            image_path = os.path.join(pathway_experiment, f"mosaic_total_{frame_number}.tif")
+            with Image.open(image_path) as img:
+                x_max, y_max = img.size
+                if crop_size is not None and crop_size > 0:
+                    left, upper, right, lower = max(0, x_0 - crop_size // 2), max(0, y_0 - crop_size // 2), \
+                                                 min(img.width, x_0 + crop_size // 2), min(img.height, y_0 + crop_size // 2)
+                    cropped_img = img.crop((left, upper, right, lower))
+                    rel_x, rel_y = x_0 - left, y_0 - upper
+                else:
+                    cropped_img = img
+                    rel_x, rel_y = x_0, y_0
+
+                fig, ax = plt.subplots()
+                ax.imshow(cropped_img, cmap='gray')
+                ax.plot(rel_x, rel_y, 'ro', markersize=dot_size)
+                ax.axis('off')
+
+                cropped_img_path = os.path.join(pathway_saving, f"cropped_{frame_number}.png")
+                plt.savefig(cropped_img_path, bbox_inches='tight')
+                plt.close(fig)
+
+    if gif and target_particle is not None:
+        with Image.open(os.path.join(pathway_saving, f"cropped_{traj['frame'].min()}.png")) as first_image:
+            first_image.save(os.path.join(pathway_saving, f"tracking_particle_{target_particle}.gif"),
+                             format='GIF',
+                             append_images=[Image.open(os.path.join(pathway_saving, f"cropped_{frame}.png")) 
+                                            for frame in range(traj['frame'].min()+1, traj['frame'].max() + 1)],
+                             save_all=True,
+                             duration=200,
+                             loop=0)
+        print(f"GIF saved at {pathway_saving}")
+
+    return
+
+# Note: The function calls are commented out to prevent execution in this environment.
+# create_cropped_tracking_gif(datas, target_particle, condition, crop_size, dot_size, gif, pathway_saving, pathway_initial)
+
+def create_cropped_tracking_gif1(datas: pd.DataFrame, target_particle: int = None,
                                 condition: str = None, crop_size: int = None, 
                                 dot_size: int = 15, gif: bool = False,
                                 pathway_saving: str = None,
@@ -1456,6 +1560,7 @@ def create_cropped_tracking_gif(datas: pd.DataFrame, target_particle: int = None
                 output_path = os.path.join(pathway_saving, f"frame_{frame_number}.png")
                 plt.savefig(output_path, bbox_inches='tight')
                 plt.close(fig)
+    
 
     elif target_particle is not None and crop_size is not None:
         particle_infos = datas[datas['particle'] == target_particle].iloc[0].to_dict()
