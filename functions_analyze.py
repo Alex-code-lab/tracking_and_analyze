@@ -1678,7 +1678,8 @@ def somme_progressive(liste):
 
 
 def plot_displacement(traj: pd.DataFrame(), start_end: pd.DataFrame,
-                      color_plot: str = 'green', save=False,
+                      color_plot: str = 'green', linewidth: float = 0.1, 
+                      alpha: float = 0.1, save=False,
                       pathway_saving=None, name=None, img_type='jpg'):
     """
     Plot displacement vs time.
@@ -1705,8 +1706,8 @@ def plot_displacement(traj: pd.DataFrame(), start_end: pd.DataFrame,
     for names, group in grouped:
         adjusted_frame = group['frame'] -\
                                 group['frame'].iloc[0]
-        ax.plot(adjusted_frame, group['cumulative displacement [um]'], alpha=0.1,
-                linewidth=0.1, color=color_plot, label=names)
+        ax.plot(adjusted_frame, group['cumulative displacement [um]'], alpha=alpha,
+                linewidth=linewidth, color=color_plot, label=names)
     # ajouter des étiquettes d'axes
     ax.set_xlabel('Time (frame)', fontsize=20)
     ax.set_ylabel('Cumulative displacement [um]', fontsize=20)
@@ -1728,7 +1729,7 @@ def plot_displacement(traj: pd.DataFrame(), start_end: pd.DataFrame,
     fig, ax = plt.subplots(figsize=(10, 10))
     # parcourir chaque groupe et tracer les données
     ax.scatter(start_end['cumulative displacement [um]'], start_end['start-end [um]'],
-               marker='+', linewidth=0.5, alpha=0.1, color=color_plot)
+               marker='+', linewidth=0.5, alpha=alpha, color=color_plot)
     # ajouter des étiquettes d'axes
     ax.set_xlabel('Cumulative displacement (um)', fontsize=20)
     ax.set_ylabel('start end length (um)', fontsize=20)
