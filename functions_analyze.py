@@ -70,6 +70,92 @@ def read_hdf5_all(pathway_experiment, condition, name_file='filtered',
 
     Returns
     -------
+    data : pd.DataFrame
+        DataFrame of the trajectories info, with new columns (renum particle
+        positions, and experiment name)
+
+    """
+    data_all = pd.DataFrame()
+    last_part_num = 0
+    # Loop for each directory path of position
+    for path in pathway_experiment:
+        data_exp = pd.DataFrame()
+        # Getting the name of the manipulation from the path
+        manip_name_search = re.search('ASMOT[0-9]{3}', path)
+        if manip_name_search is None:  # If the regex search finds no match, skip to next path
+            continue
+        manip_name = manip_name_search.group()
+
+        list_files_to_read = [os.path.join(path, f) for f in os.listdir(path)
+                              if f.endswith(".hdf5") and name_file in f]
+        
+        # If no hdf5 files are found, continue to the next directory
+        if not list_files_to_read:
+            print(f"No HDF5 files found in {path}. Skipping to next directory.")
+            continue
+        
+        print(list_files_to_read)
+        list_fields_positions = [re.sub('.hdf5', '', f.replace(path + os.sep, ''))
+                                 for f in list_files_to_read]
+        # Loop for each file
+        for f, position in zip(list_files_to_read, list_fields_positions):
+            # Reading data from the file
+            try:
+                data = pd.read_hdf(f, key='table')
+            except ValueError:
+                continue
+
+            if name_file == 'features':
+                data = tp.link_df(data,
+                                  search_range=search_range,
+                                  memory=memory,
+                                  neighbor_strategy='KDTree',
+                                  link_strategy='auto',
+                                  adaptive_stop=30,
+                                  )
+
+            counts = data.groupby(['particle']).size()
+            particles_to_keep = counts[counts >= nbr_frame_min].reset_index()
+            data = data.merge(particles_to_keep, on=['particle'])
+            data = data.rename(columns={'particle': 'old_particle'})
+            data['particle'], _ = pd.factorize(data['old_particle'])
+            data['particle'] += last_part_num
+            data["experiment"] = manip_name
+            data["position"] = position
+            data_exp = pd.concat([data_exp, data])
+            if len(data_all) != 0:
+                last_part_num = data_all['particle'].max() + data_exp['particle'].nunique() + 1
+            else:
+                last_part_num = data_exp['particle'].nunique()
+        if drift:
+            # Assuming remove_drift is a previously defined function
+            data_exp = remove_drift(traj=data_exp, smooth=2,
+                                    save=True, pathway_saving=path,
+                                    name=manip_name + '_' + position)
+            data_exp = data_exp.drop('frame', axis=1)
+            data_exp = data_exp.reset_index(drop=True)
+        data_all = pd.concat([data_all, data_exp], ignore_index=True)
+        print(manip_name, " : ", data_exp['particle'].nunique())
+    data_all['condition'] = condition
+    print("Nombre de particules récoltées avant tri: ", data_all['particle'].nunique())
+    return data_all
+
+
+def read_hdf5_all2(pathway_experiment, condition, name_file='filtered',
+                  nbr_frame_min=200, drift=False, search_range: int = 120,
+                  memory: int = 15):
+    """
+    Read all the traj files of one experiment.
+
+    Parameters
+    ----------
+    pathway_experiment : string
+        absolute path to the traj hdf5 files.
+    condition : str
+        specific condition of the experiment.
+
+    Returns
+    -------
     data : pd.DataFrame()
         DataFrame of the trajectories info, with new columns (renum particle
         positions, and experiment name)
@@ -1677,9 +1763,9 @@ def somme_progressive(liste):
     return [sum(liste[0:i]) for i in range(1, len(liste)+1)]
 
 
-def plot_displacement(traj: pd.DataFrame(), start_end: pd.DataFrame,
+def plot_displacement(traj: pd.DataFrame, start_end: pd.DataFrame,
                       color_plot: str = 'green', linewidth: float = 0.1, 
-                      alpha: float = 0.1, save=False,
+                      alpha: float = 0.1, save=False, xlim: list = None, ylim: list =None,
                       pathway_saving=None, name=None, img_type='jpg'):
     """
     Plot displacement vs time.
@@ -1708,6 +1794,10 @@ def plot_displacement(traj: pd.DataFrame(), start_end: pd.DataFrame,
                                 group['frame'].iloc[0]
         ax.plot(adjusted_frame, group['cumulative displacement [um]'], alpha=alpha,
                 linewidth=linewidth, color=color_plot, label=names)
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    if ylim is not None:
+        ax.set_ylim(ylim)
     # ajouter des étiquettes d'axes
     ax.set_xlabel('Time (frame)', fontsize=20)
     ax.set_ylabel('Cumulative displacement [um]', fontsize=20)
