@@ -113,9 +113,12 @@ def read_hdf5_all(pathway_experiment, condition, name_file='filtered',
                                   link_strategy='auto',
                                   adaptive_stop=30,
                                   )
+            # counts = data.groupby(['particle']).size()
+            # particles_to_keep = counts[counts >= nbr_frame_min].reset_index()
+            # data = data.merge(particles_to_keep, on=['particle'])
 
             counts = data.groupby(['particle']).size()
-            particles_to_keep = counts[counts >= nbr_frame_min].reset_index()
+            particles_to_keep = counts[counts >= nbr_frame_min].reset_index(name='count')
             data = data.merge(particles_to_keep, on=['particle'])
             data = data.rename(columns={'particle': 'old_particle'})
             data['particle'], _ = pd.factorize(data['old_particle'])
@@ -123,6 +126,7 @@ def read_hdf5_all(pathway_experiment, condition, name_file='filtered',
             data["experiment"] = manip_name
             data["position"] = position
             data_exp = pd.concat([data_exp, data])
+            
             if len(data_all) != 0:
                 last_part_num = data_all['particle'].max() + data_exp['particle'].nunique() + 1
             else:
@@ -1505,18 +1509,26 @@ def create_cropped_tracking_gif(datas: pd.DataFrame, target_particle: int = None
 
     if pathway_initial is None:
         pathway_initial = '/Users/souchaud/Desktop/A_analyser/'
+        dossier_manip = glob.glob(f'{pathway_initial}{condition}/*') 
+        pathway_experiment = dossier_manip[0] + '/mosaic/'
+    else:
+        dossier_manip = glob.glob(f'{pathway_initial}*') 
+        pathway_experiment = pathway_initial
 
-    dossier_manip = glob.glob(f'{pathway_initial}{condition}/*') 
+    if condition is None:
+        condition =''
+    
     if not dossier_manip:
         print("No such file")
         return
-    pathway_experiment = dossier_manip[0] + '/mosaic/'
 
     if pathway_saving is None:
         path = '/users/souchaud/Desktop/Analyses/gif_particle_seule/'
         os.makedirs(path, exist_ok=True)
         pathway_saving = path + f'/{condition}_part_n{target_particle}/'
-
+    if pathway_saving is not None:
+        pathway_saving= pathway_saving + f'/{target_particle}'
+    
     os.makedirs(pathway_saving, exist_ok=True)
 
     for filename in os.listdir(pathway_saving):
@@ -1546,39 +1558,45 @@ def create_cropped_tracking_gif(datas: pd.DataFrame, target_particle: int = None
                 img.save(output_path, format="PNG")
 
     elif target_particle is not None and crop_size is not None:
-        particle_infos = datas[datas['particle'] == target_particle].iloc[0].to_dict()
-        traj = datas[(datas['experiment'] == particle_infos['experiment']) & 
-                     (datas['position'] == particle_infos['position']) & 
-                     (datas['particle'] == target_particle)]
+        traj = datas[datas['particle'] == target_particle]
 
-        frame_data_init = traj.iloc[0]
-        x_0, y_0 = int(frame_data_init['x']), int(frame_data_init['y'])
+        # Coordonnées initiales de la particule pour le premier frame
+        initial_data = traj.iloc[0]
+        x_0, y_0 = int(initial_data['x']), int(initial_data['y'])
+
+        # Calculer les coordonnées de crop basées sur la position initiale
+        left, upper = x_0 - crop_size // 2, y_0 - crop_size // 2
+        right, lower = x_0 + crop_size // 2, y_0 + crop_size // 2
 
         for frame_number in range(traj['frame'].min(), traj['frame'].max() + 1):
             frame_data = traj[traj['frame'] == frame_number]
             if frame_data.empty:
                 continue
 
+            # Coordonnées actuelles de la particule pour ce frame
+            x, y = int(frame_data['x'].values[0]), int(frame_data['y'].values[0])
+
             image_path = os.path.join(pathway_experiment, f"mosaic_total_{frame_number}.tif")
             with Image.open(image_path) as img:
-                x_max, y_max = img.size
-                if crop_size is not None and crop_size > 0:
-                    left, upper, right, lower = max(0, x_0 - crop_size // 2), max(0, y_0 - crop_size // 2), \
-                                                 min(img.width, x_0 + crop_size // 2), min(img.height, y_0 + crop_size // 2)
-                    cropped_img = img.crop((left, upper, right, lower))
-                    rel_x, rel_y = x_0 - left, y_0 - upper
-                else:
-                    cropped_img = img
-                    rel_x, rel_y = x_0, y_0
+                cropped_img = img.crop((left, upper, right, lower))
 
-                fig, ax = plt.subplots()
-                ax.imshow(cropped_img, cmap='gray')
-                ax.plot(rel_x, rel_y, 'ro', markersize=dot_size)
-                ax.axis('off')
+                # Convertir l'image croppée en format RGBA pour le dessin du point rouge
+                cropped_img_rgba = cropped_img.convert("RGBA")
+                draw = ImageDraw.Draw(cropped_img_rgba)
 
+                # Calculer les coordonnées relatives de la particule dans la fenêtre croppée
+                rel_x, rel_y = x - left, y - upper
+
+                # Dessiner le point rouge à la position relative de la particule
+                draw.ellipse([(rel_x - dot_size // 2, rel_y - dot_size // 2), 
+                            (rel_x + dot_size // 2, rel_y + dot_size // 2)], 
+                            fill='red')
+
+                # Sauvegarder l'image croppée avec le point rouge
                 cropped_img_path = os.path.join(pathway_saving, f"cropped_{frame_number}.png")
-                plt.savefig(cropped_img_path, bbox_inches='tight')
-                plt.close(fig)
+                cropped_img_rgba.save(cropped_img_path)
+
+
 
     if gif and target_particle is not None:
         with Image.open(os.path.join(pathway_saving, f"cropped_{traj['frame'].min()}.png")) as first_image:
@@ -1610,7 +1628,7 @@ def create_cropped_tracking_gif1(datas: pd.DataFrame, target_particle: int = Non
     if pathway_initial is None:
         pathway_initial = '/Users/souchaud/Desktop/A_analyser/'
 
-    dossier_manip = glob.glob(f'{pathway_initial}{condition}/*') 
+    dossier_manip = glob.glob(f'{pathway_initial}faits{condition}/*') 
     if not dossier_manip:
         print("No such file")
         return
@@ -1735,8 +1753,7 @@ def length_displacement(traj, size_pix, lag_time=15, triage=1):
     """
     if 'dx [pix]' not in traj.columns:
         traj = vit_instant_new(traj=traj, lag_time=lag_time, pix_size=size_pix, triage=triage)
-    traj['cumulative displacement [um]'] = traj.groupby(
-        'particle')['displacement [pix]'].cumsum()*size_pix
+    traj['cumulative displacement [um]'] = traj.groupby('particle')['displacement [pix]'].cumsum()*size_pix
     # Grouper par "particle" et appliquer la fonction personnalisée
     start_end = pd.DataFrame()
     start_end['start-end [um]'] = size_pix * np.sqrt(
@@ -1790,8 +1807,8 @@ def plot_displacement(traj: pd.DataFrame, start_end: pd.DataFrame,
     fig, ax = plt.subplots(figsize=(10, 10))
     # parcourir chaque groupe et tracer les données
     for names, group in grouped:
-        adjusted_frame = group['frame'] -\
-                                group['frame'].iloc[0]
+        adjusted_frame = group['time (min)'] -\
+                                group['time (min)'].iloc[0]
         ax.plot(adjusted_frame, group['cumulative displacement [um]'], alpha=alpha,
                 linewidth=linewidth, color=color_plot, label=names)
     if xlim is not None:
