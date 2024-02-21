@@ -10,7 +10,8 @@ import cv2
 path_gen = '/Users/souchaud/Desktop/'
 
 exp = [# '2023_01_25_ASMOT052_BoiteCytoOne_HL5_15s_5x_P3_AX3Chi1_t0_21c8_LDMOT01/8bits/',
-       '2023_01_25_ASMOT053_BoiteCytoOne_HL5_15s_5x_P3_AX3Chi1_t90_21c8_LDMOT01',
+    #    '2023_01_25_ASMOT053_BoiteCytoOne_HL5_15s_5x_P3_AX3Chi1_t90_21c8_LDMOT01',
+        '2024_02_20_ASMOT127_AX3_MAT_P4_10x_CytoOne_HL5_1902-11h-2002-14h42_1/8bits/',
        # '2023_01_25_ASMOT054_BoiteCytoOne_HL5_15s_5x_P3_AX3Chi2_t0_21c_DGMOT01/8bits/',
        # '2023_01_27_ASMOT055_BoiteCytoOne_HL5_15s_5x_P4_AX3Chi2_t0_21c/8bits/',
        # '2023_02_15_ASMOT056_BoiteCytoOne_HL5_Chi2_P4_5x_15s_21c_t0_Em/8bits/',
