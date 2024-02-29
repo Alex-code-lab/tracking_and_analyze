@@ -56,8 +56,8 @@ def import_img_sequences(path, first_frame=0, last_frame=240, file_extension='.t
 
 
 def read_hdf5_all(pathway_experiment, condition, name_file='filtered',
-                  nbr_frame_min=200, drift=False, search_range: int = 120,
-                  memory: int = 15):
+                  nbr_frame_min=200, drift=False, search_range: int = 100,
+                  memory: int = 15, adaptive_stop: int = 30, min_mass: int = 1000, max_size: int = 40,):
     """
     Read all the traj files of one experiment.
 
@@ -106,13 +106,25 @@ def read_hdf5_all(pathway_experiment, condition, name_file='filtered',
                 continue
 
             if name_file == 'features':
-                data = tp.link_df(data,
-                                  search_range=search_range,
-                                  memory=memory,
-                                  neighbor_strategy='KDTree',
-                                  link_strategy='auto',
-                                  adaptive_stop=30,
-                                  )
+                if 'particle' not in data.columns:
+                    data = tp.link_df(data,
+                                    search_range=search_range,
+                                    memory=memory,
+                                    neighbor_strategy='KDTree',
+                                    link_strategy='auto',
+                                    adaptive_stop=adaptive_stop,
+                                    )
+                
+                if 'size' in data.columns and 'mass' in data.columns and 'raw_mass' in data.columns:
+                    # data = data[(data['mass'] < min_mass) & (data['size']< max_size) & 
+                    # data = data[(data['raw_mass'] > 1000)]
+                    mean_mass_by_particle = data.groupby('particle')['raw_mass'].mean()
+                    # Filtrer les particules dont la masse moyenne est inférieure à 50000
+                    particles_to_keep = mean_mass_by_particle[mean_mass_by_particle > 50000].index
+                    # Filtrer 'data' pour ne garder que les lignes correspondant aux particules filtrées
+                    data = data[data['particle'].isin(particles_to_keep)]
+
+                                  
             # counts = data.groupby(['particle']).size()
             # particles_to_keep = counts[counts >= nbr_frame_min].reset_index()
             # data = data.merge(particles_to_keep, on=['particle'])
