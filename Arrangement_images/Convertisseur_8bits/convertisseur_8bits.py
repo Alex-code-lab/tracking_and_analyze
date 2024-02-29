@@ -95,6 +95,7 @@ def convert_to_8bit(image_stack):
     # image_stack_8bit = img_as_ubyte(image_stack_rgb, 8)
     if len(image_stack.shape) not in (3, 4):
         raise ValueError("image_stack has an invalid number of channels")
+    print(" is : ", len(image_stack.shape))
     if len(image_stack.shape) == 3:
         image_stack_8bit = img_as_ubyte(image_stack, 8)
     else:
