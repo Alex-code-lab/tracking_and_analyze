@@ -55,7 +55,7 @@ def import_img_sequences(path, first_frame=0, last_frame=240, file_extension='.t
     return frames
 
 
-def read_hdf5_all(pathway_experiment, condition, name_file='filtered',
+def read_hdf5_all(pathway_experiment, condition, name_file='filtered_ok',
                   nbr_frame_min=200, drift=False, search_range: int = 100,
                   memory: int = 15, adaptive_stop: int = 30, min_mass: int = 1000, max_size: int = 40,):
     """
