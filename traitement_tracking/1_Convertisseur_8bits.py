@@ -204,7 +204,8 @@ general_path = '/Users/souchaud/Desktop/'
 #                    os.path.isdir(general_path)]
 
 experiment_names = [
-                    'testmedian/'
+                    # '2024_03_05_ASMOT132_AX3_MAT_P3_10x_Cyto'
+                    # 'testmedian/'
                     # '2022_12_09_ASMOT035_BoiteNonT_SorC_15s_5x_P6_AX3Chi2_t90/',
                     # '2022_12_09_ASMOT036_BoiteNonT_SorC_15s_5x_P6_AX3Chi2_t0/',
                     # '2022_12_15_ASMOT042_BoiteNonT_SorC_15s_5x_P8_AX3Chi2_t0_21c/',
