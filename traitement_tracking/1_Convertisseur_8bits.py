@@ -196,21 +196,21 @@ def create_and_move_images(base_dir):
 
 
 # Define the path to the folder containing the TIFF images.
-general_path = '/Users/souchaud/Desktop/'
+general_path = '/Users/souchaud/Desktop/A_analyser/CytoOne_HL5_10x/'
 # general_path = '/Users/souchaud/Desktop/Jean-Paul/'´
 # general_path = '/Volumes/Labo_Alex_Mac/A_analyser/CytoOne_HL5/to_convert/'
 
-# experiment_name = [f for f in os.listdir(general_path) if
-#                    os.path.isdir(general_path)]
+experiment_names = [f for f in os.listdir(general_path) if
+                   os.path.isdir(general_path)]
 
-experiment_names = [
-                    # '2024_03_05_ASMOT132_AX3_MAT_P3_10x_Cyto'
-                    # 'testmedian/'
-                    # '2022_12_09_ASMOT035_BoiteNonT_SorC_15s_5x_P6_AX3Chi2_t90/',
-                    # '2022_12_09_ASMOT036_BoiteNonT_SorC_15s_5x_P6_AX3Chi2_t0/',
-                    # '2022_12_15_ASMOT042_BoiteNonT_SorC_15s_5x_P8_AX3Chi2_t0_21c/',
-                    # '2022_12_15_ASMOT043_BoiteNonT_SorC_15s_5x_P8_AX3Chi2_t90_21c/'
-                    ]
+# experiment_names = [
+#                     # '2024_03_05_ASMOT132_AX3_MAT_P3_10x_Cyto'
+#                     # 'testmedian/'
+#                     # '2022_12_09_ASMOT035_BoiteNonT_SorC_15s_5x_P6_AX3Chi2_t90/',
+#                     # '2022_12_09_ASMOT036_BoiteNonT_SorC_15s_5x_P6_AX3Chi2_t0/',
+#                     # '2022_12_15_ASMOT042_BoiteNonT_SorC_15s_5x_P8_AX3Chi2_t0_21c/',
+#                     # '2022_12_15_ASMOT043_BoiteNonT_SorC_15s_5x_P8_AX3Chi2_t90_21c/'
+#                     ]
 
 for experiment_name in experiment_names:
     name_manip = [f for f in os.listdir(os.path.join(general_path, experiment_name)) if
