@@ -1828,9 +1828,9 @@ def plot_displacement(traj: pd.DataFrame, start_end: pd.DataFrame,
     if ylim is not None:
         ax.set_ylim(ylim)
     # ajouter des étiquettes d'axes
-    ax.set_xlabel('Time (frame)', fontsize=20)
+    ax.set_xlabel('Time (min)', fontsize=20)
     ax.set_ylabel('Cumulative displacement [um]', fontsize=20)
-    plt.title(f"cumulative displacement vs time (frame) {name}", fontsize=20,
+    plt.title(f"cumulative displacement vs time", fontsize=20,
               fontweight="bold", fontstyle='italic', fontname="Arial")
     plt.show()
     # Save the plot if the "save" parameter is True
@@ -1855,7 +1855,7 @@ def plot_displacement(traj: pd.DataFrame, start_end: pd.DataFrame,
     ax.tick_params(axis='both', which='major', labelsize=20)
 
     # cbar.set_label('Start-End displacement (um)')
-    plt.title(f'Start-end displacement vs cumultaive displacement {name}', fontsize=20,
+    plt.title(f'Start-end displacement vs cumultaive displacement', fontsize=20,
               fontweight="bold", fontstyle='italic', fontname="Arial")
     plt.tight_layout()
     plt.show()
