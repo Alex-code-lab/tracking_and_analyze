@@ -4,6 +4,9 @@
 Created on Mon May 15 11:59:50 2023
 
 @author: souchaud
+
+Ce code permet d'aller créer les mosaics d'images des expériences. Le schéma des dossiers est 
+défini pour un seul exemple de dossier. Cela doit être revu au cas par cas. 
 """
 
 import os
