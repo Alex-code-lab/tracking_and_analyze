@@ -1793,156 +1793,138 @@ def somme_progressive(liste):
 
 
 def plot_displacement(traj: pd.DataFrame, start_end: pd.DataFrame,
-                      color_plot: str = 'green', linewidth: float = 0.1, 
-                      alpha: float = 0.1, save=False, xlim: list = None, ylim: list =None,
-                      pathway_saving=None, name=None, img_type='jpg'):
+                      color_plot: str = 'green', linewidth: float = 0.1,
+                      alpha: float = 0.1, save: bool = False, xlim: list = None, ylim: list = None,
+                      pathway_saving: str = None, name: str = None, img_type: str = 'jpg'):
     """
-    Plot displacement vs time.
+    Plot displacement vs time and start-end vs cumulative displacement.
 
-    Parameters
-    ----------
-    traj : TYPE
-        DESCRIPTION.
-    name : TYPE, optional
-        DESCRIPTION. The default is "cumulative displacement vs time (frame)".
-    save : TYPE, optional
-        DESCRIPTION. The default is False.
-    pathway_saving : TYPE, optional
-        DESCRIPTION. The default is None.
-
-    Returns
-    -------
-    None.
-
+    Parameters:
+    traj : pd.DataFrame - DataFrame containing trajectory data with 'time (min)' and 'cumulative displacement [um]'.
+    start_end : pd.DataFrame - DataFrame to store and display start-end information.
+    color_plot : str - Color for the plot lines and points.
+    linewidth : float - Line width for plot lines.
+    alpha : float - Alpha transparency for lines and markers.
+    save : bool - Flag to save the generated plot.
+    xlim : list - X-axis limits for the plot.
+    ylim : list - Y-axis limits for the plot.
+    pathway_saving : str - Path to save the plot files.
+    name : str - Base name for saved plot files.
+    img_type : str - Image file type for saved plots.
     """
-    grouped = traj.groupby('particle')
+    if traj.empty:
+        print("Input trajectory dataframe is empty, unable to plot")
+        return
+
+    # Plot cumulative displacement vs time
     fig, ax = plt.subplots(figsize=(10, 10))
-    # parcourir chaque groupe et tracer les données
-    for names, group in grouped:
-        adjusted_frame = group['time (min)'] -\
-                                group['time (min)'].iloc[0]
-        ax.plot(adjusted_frame, group['cumulative displacement [um]'], alpha=alpha,
-                linewidth=linewidth, color=color_plot, label=names)
-    if xlim is not None:
-        ax.set_xlim(xlim)
-    if ylim is not None:
-        ax.set_ylim(ylim)
-    # ajouter des étiquettes d'axes
+    grouped = traj.groupby('particle')
+    for name, group in grouped:
+        adjusted_time = group['time (min)'] - group['time (min)'].iloc[0]
+        ax.plot(adjusted_time, group['cumulative displacement [um]'], 
+                alpha=alpha, linewidth=linewidth, color=color_plot, label=name)
     ax.set_xlabel('Time (min)', fontsize=20)
     ax.set_ylabel('Cumulative displacement [um]', fontsize=20)
-    plt.title(f"cumulative displacement vs time", fontsize=20,
-              fontweight="bold", fontstyle='italic', fontname="Arial")
+    plt.title("Cumulative Displacement vs Time", fontsize=20, fontweight="bold", fontstyle='italic', fontname="Arial")
+    if xlim:
+        ax.set_xlim(xlim)
+    if ylim:
+        ax.set_ylim(ylim)
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.tight_layout()
     plt.show()
-    # Save the plot if the "save" parameter is True
-    if save:
-        if pathway_saving is None:
-            pathway_saving = './'
-        fig.savefig(
-                    f"{pathway_saving}cumulative displacement vs time(frame) {name}.{img_type}",
-                    format=img_type)
-    # add the cumulative to the start-end dataFrame
-    cumulative = traj.groupby('particle')['cumulative displacement [um]'].last()
-    start_end = pd.concat([start_end, cumulative], axis=1)
-    # Créer une liste de couleurs en fonction de la valeur de "start-end"
-    # colors = start_end['start-end [um]']
-    fig, ax = plt.subplots(figsize=(10, 10))
-    # parcourir chaque groupe et tracer les données
-    ax.scatter(start_end['cumulative displacement [um]'], start_end['start-end [um]'],
-               marker='+', linewidth=0.5, alpha=alpha, color=color_plot)
-    # ajouter des étiquettes d'axes
-    ax.set_xlabel('Cumulative displacement (um)', fontsize=20)
-    ax.set_ylabel('start end length (um)', fontsize=20)
-    ax.tick_params(axis='both', which='major', labelsize=20)
+    if save and pathway_saving and name:
+        fig_path = f"{pathway_saving}cumulative_displacement_vs_time_{name}.{img_type}"
+        fig.savefig(fig_path, format=img_type)
 
-    # cbar.set_label('Start-End displacement (um)')
-    plt.title(f'Start-end displacement vs cumultaive displacement', fontsize=20,
+    # Add the cumulative displacement to start_end DataFrame
+    cumulative = traj.groupby('particle')['cumulative displacement [um]'].last()
+    start_end_combined = pd.concat([start_end, cumulative], axis=1)
+
+    # Plot start-end vs cumulative displacement
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.scatter(start_end_combined['cumulative displacement [um]'], start_end_combined['start-end [um]'],
+               marker='+', linewidth=0.5, alpha=alpha, color=color_plot)
+    ax.set_xlabel('Cumulative Displacement (um)', fontsize=20)
+    ax.set_ylabel('Start-End Displacement (um)', fontsize=20)
+    plt.title("Start-End Displacement vs Cumulative Displacement", fontsize=20, 
               fontweight="bold", fontstyle='italic', fontname="Arial")
     plt.tight_layout()
     plt.show()
-    if save:
-        if pathway_saving is None:
-            pathway_saving = './'
-        fig.savefig(f"{pathway_saving}start-end vs cumulative {name}.{img_type}",
-                    format=img_type)
+    if save and pathway_saving and name:
+        fig_path = f"{pathway_saving}start_end_vs_cumulative_{name}.{img_type}"
+        fig.savefig(fig_path, format=img_type)
 
 
-def plot_displacement_low_and_high(traj_sup: pd.DataFrame, traj_inf: pd.DataFrame,
-                                   start_end: pd.DataFrame,
-                                   color_sup_inf: tuple = ('red', 'blue'), save=False,
+def plot_displacement_low_and_high(traj_sup: pd.DataFrame, traj_inf: pd.DataFrame, part_coef_sup, part_coef_inf,
+                                   start_end: pd.DataFrame, alpha: float=0.1, linewidth: float=0.1,
+                                   xlim: list=None, ylim: list=None, 
+                                   color_sup_inf: tuple=('red', 'blue'), save=False,
                                    pathway_saving=None, name=None, img_type="jpg"):
-    """
-    Plot displacement vs time.
-
-    Parameters
-    ----------
-    traj_sup, traj_inf : pandas DataFrame
-        These are the DataFrames containing the data to be plotted.
-    start_end: pandas DataFrame
-        This DataFrame contains the data for the start-end plot.
-    save : bool, optional
-        If True, the plot will be saved. The default is False.
-    pathway_saving : str, optional
-        The path where the plot will be saved. The default is None, which means current directory.
-    name: str, optional
-        The name of the plot. The default is None.
-    img_type: str, optional
-        The image file type for saving the plot. The default is "jpg".
-
-    Returns
-    -------
-    None.
-
-    """
-    # Initialize dataframes
-    grouped_sup, grouped_inf = None, None
-
-    # Only create group if the dataframe is not empty
-    if not traj_sup.empty:
-        grouped_sup = traj_sup.groupby('particle')
-    if not traj_inf.empty:
-        grouped_inf = traj_inf.groupby('particle')
-
-    # Error handling: if both dataframes are empty
-    if grouped_sup is None and grouped_inf is None:
+    if traj_sup.empty and traj_inf.empty:
         print("Both input dataframes are empty, unable to plot")
         return
 
-    # Define plot's general aesthetics
+    # Plotting cumulative displacement vs time
     fig, ax = plt.subplots(figsize=(10, 10))
-    ax.set_xlabel('Time (frame)', fontsize=20)
-    ax.set_ylabel('Cumulative displacement [um]', fontsize=20)
-    ax.set_ylabel('Cumulative displacement [um]', fontsize=20)
-
-    # Define plot method for a given group
-    def plot_group(grouped_df, color):
+    def plot_group(grouped_df, color, label_prefix):
         for name, group in grouped_df:
-            adjusted_frame = group['frame'] -\
-                             group['frame'].iloc[0]
+            adjusted_time = group['time (min)'] - group['time (min)'].iloc[0]
+            ax.plot(adjusted_time, group['cumulative displacement [um]'], 
+                    alpha=alpha, linewidth=linewidth, color=color, 
+                    label=f"{label_prefix} {name}")
 
-            ax.plot(adjusted_frame, group['cumulative displacement [um]'], alpha=0.1,
-                    linewidth=0.1, color=color, label=name)
+    if not traj_sup.empty:
+        grouped_sup = traj_sup.groupby('particle')
+        plot_group(grouped_sup, color_sup_inf[0], 'High')
+    
+    if not traj_inf.empty:
+        grouped_inf = traj_inf.groupby('particle')
+        plot_group(grouped_inf, color_sup_inf[1], 'Low')
 
-    # Plot data
-    if grouped_sup is not None:
-        plot_group(grouped_sup, color_sup_inf[0])
-    if grouped_inf is not None:
-        plot_group(grouped_inf, color_sup_inf[1])
-
-    # Set the plot title and display
-    plt.title(f"cumulative displacement vs time (frame) {name}", fontsize=20,
-              fontweight="bold", fontstyle='italic', fontname="Arial")
+    ax.set_xlabel('Time (min)', fontsize=20)
+    ax.set_ylabel('Cumulative displacement [um]', fontsize=20)
+    ax.set_title(f"Cumulative Displacement vs Time ({name})", fontsize=20, 
+                 fontweight="bold", fontstyle='italic', fontname="Arial")
+    if xlim:
+        ax.set_xlim(xlim)
+    if ylim:
+        ax.set_ylim(ylim)
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.tight_layout()
     plt.show()
-
-    # Save the plot if the "save" parameter is True
     if save:
-        if pathway_saving is None:
+        if not pathway_saving:
             pathway_saving = './'
-        fig.savefig(
-                    f"{pathway_saving}cumulative displacement vs time(frame)\
-                        low and high {name}.{img_type}",
-                    format=img_type)
+        fig.savefig(f"{pathway_saving}cumulative_displacement_vs_time_{name}.{img_type}", format=img_type)
 
-    # Additional plots and savings not included due to length restrictions
+    # Handling start-end vs cumulative displacement
+    start_end_sup = start_end.loc[start_end.index.isin(part_coef_sup)]
+    cumulative_sup = traj_sup.groupby('particle')['cumulative displacement [um]'].last()
+    start_end_sup = start_end_sup.assign(cumulative=cumulative_sup)
+    start_end_inf = start_end.loc[start_end.index.isin(part_coef_inf)]
+    cumulative_inf = traj_inf.groupby('particle')['cumulative displacement [um]'].last()
+    start_end_inf = start_end_inf.assign(cumulative=cumulative_inf)
+
+    # Plotting start-end vs cumulative displacement
+    if not start_end_sup.empty and not start_end_inf.empty:
+        fig, ax = plt.subplots(figsize=(10, 10))
+        ax.scatter(start_end_sup['cumulative'], start_end_sup['start-end [um]'],
+                   marker='+', linewidth=0.8, alpha=alpha, color='blue')
+        ax.scatter(start_end_inf['cumulative'], start_end_inf['start-end [um]'],
+                   marker='+', linewidth=0.8, alpha=alpha, color='red')
+        ax.set_xlabel('Cumulative displacement (um)', fontsize=20)
+        ax.set_ylabel('Start-End displacement (um)', fontsize=20)
+        ax.tick_params(axis='both', which='major', labelsize=20)
+        plt.title(f'Start-End Displacement vs Cumulative Displacement', fontsize=20,
+                  fontweight="bold", fontstyle='italic', fontname="Arial")
+        plt.grid(True, linestyle='--', alpha=0.5)
+
+        plt.tight_layout()
+        plt.show()
+        if save:
+            fig.savefig(f"{pathway_saving}start_end_vs_cumulative_{name}.{img_type}",
+                        format=img_type)
 
 
 def plot_centered_traj(traj: pd.DataFrame, size_pix: float, name='Trajectories recentered',
