@@ -32,26 +32,34 @@ plt.rcParams['figure.max_open_warning'] = 50
 
 def import_img_sequences(path, first_frame=0, last_frame=240, file_extension='.tif'):
     """
-    Pims allowed to load the pictures.
+    Load image sequences using Python Image Sequence (Pims) library, allowing easy manipulation
+    of images as arrays.
 
-    Parameters
-    ----------
-    path : path to the pictures field.
-    file_extension : extension of the image files (e.g., '.tif', '.jpg').
+    Parameters:
+    - path : str
+        Path to the directory containing the image files.
+    - first_frame : int, optional
+        The index of the first frame to load (default is 0).
+    - last_frame : int, optional
+        The index of the last frame to load (default is 240).
+    - file_extension : str, optional
+        The file extension of the image files (default is '.tif').
 
-    Returns
-    -------
-    Frames : all frames.
+    Returns:
+    - frames : pims.FramesSequence
+        A pims FramesSequence object containing the loaded image frames.
     """
-    # Construire le chemin complet pour chaque fichier image
+    # Construct the full path for each image file
     images_path = os.path.join(path, '*' + file_extension)
 
-    # Charger uniquement les fichiers image
+    # Load only the image files within the specified range
     frames = pims.ImageSequence(images_path)[first_frame:last_frame]
 
+    # Optional: Display the first frame to confirm loading
     plt.figure(figsize=(20, 20))
-    plt.title("Image binaire", fontsize=40, fontweight="bold", fontstyle='italic', fontname="Arial")
+    plt.title("First Loaded Image", fontsize=40, fontweight="bold", fontstyle='italic', fontname="Arial")
     io.imshow(frames[0])
+    
     return frames
 
 
@@ -59,21 +67,26 @@ def read_hdf5_all(pathway_experiment, condition, name_file='filtered_ok',
                   nbr_frame_min=200, drift=False, search_range: int = 100,
                   memory: int = 15, adaptive_stop: int = 30, min_mass: int = 1000, max_size: int = 40,):
     """
-    Read all the traj files of one experiment.
+    Read all HDF5 trajectory files from a given experiment condition, and optionally apply drift correction
+    and other preprocessing steps.
 
-    Parameters
-    ----------
-    pathway_experiment : string
-        absolute path to the traj hdf5 files.
-    condition : str
-        specific condition of the experiment.
+    Parameters:
+    - pathway_experiment : list of str
+        List of directory paths containing HDF5 trajectory files.
+    - condition : str
+        Description of the experimental condition to label the data.
+    - name_file : str, optional
+        Specific string to identify the correct HDF5 files (default is 'filtered_ok').
+    - nbr_frame_min : int, optional
+        Minimum number of frames a particle must be present to be included (default is 200).
+    - drift : bool, optional
+        Flag to apply drift correction to the trajectory data (default is False).
+    - search_range, memory, adaptive_stop, min_mass, max_size : int, optional
+        Parameters used in particle linking and filtering.
 
-    Returns
-    -------
-    data : pd.DataFrame
-        DataFrame of the trajectories info, with new columns (renum particle
-        positions, and experiment name)
-
+    Returns:
+    - data_all : pd.DataFrame
+        DataFrame containing concatenated and processed trajectory data across all specified experiments.
     """
     data_all = pd.DataFrame()
     last_part_num = 0
@@ -157,97 +170,19 @@ def read_hdf5_all(pathway_experiment, condition, name_file='filtered_ok',
     return data_all
 
 
-def read_hdf5_all2(pathway_experiment, condition, name_file='filtered',
-                  nbr_frame_min=200, drift=False, search_range: int = 120,
-                  memory: int = 15):
-    """
-    Read all the traj files of one experiment.
-
-    Parameters
-    ----------
-    pathway_experiment : string
-        absolute path to the traj hdf5 files.
-    condition : str
-        specific condition of the experiment.
-
-    Returns
-    -------
-    data : pd.DataFrame()
-        DataFrame of the trajectories info, with new columns (renum particle
-        positions, and experiment name)
-
-    """
-    data_all = pd.DataFrame()
-    last_part_num = 0
-    # Boucle pour chaque chemin de répertoire de position
-    for path in pathway_experiment:
-        data_exp = pd.DataFrame()
-        # Récupération du nom de la manipulation à partir du chemin
-        manip_name = re.search('ASMOT[0-9]{3}', path).group()
-
-        list_files_to_read = [path + f for f in os.listdir(path)
-                              if f.endswith(".hdf5") and f'{name_file}' in f]
-        print(list_files_to_read)
-        list_fields_positions = [re.sub('.hdf5', '', re.sub(path, '', f))
-                                 for f in list_files_to_read]
-        # Boucle pour chaque fichier
-        for f, position in zip(list_files_to_read, list_fields_positions):
-            # print(f, position)
-            # Lecture des données depuis le fichier
-            try:
-                data = pd.read_hdf(f, key='table')  # Remove the comma at the end
-            except ValueError:
-                continue
-
-            if name_file == 'features':
-                data = tp.link_df(data,
-                                  search_range=search_range,  # PARAMS['max_displacement'],
-                                  memory=memory,
-                                  neighbor_strategy='KDTree',
-                                  link_strategy='auto',  # 'hybrid',
-                                  adaptive_stop=30,
-                                  # verify_integritxy=True,
-                                  )
-            # On compte le nombre de frames pour chaque particule dans chaque expérience
-            counts = data.groupby(['particle']).size()
-            particles_to_keep = counts[counts >= nbr_frame_min].reset_index()
-            data = data.merge(particles_to_keep, on=['particle'])
-            data = data.rename(columns={'particle': 'old_particle'})
-            # Renumerotation des particules
-            data['particle'], _ = pd.factorize(data['old_particle'])
-            data['particle'] += last_part_num
-            # Ajout de la colonne "experiment"
-            data["experiment"] = manip_name
-            # Ajout de la colonne "position"
-            data["position"] = position
-            data_exp = pd.concat([data, data_exp])
-            if len(data_all) != 0:
-                last_part_num = data_all['particle'].max() + data_exp['particle'].nunique() + 1
-            else:
-                last_part_num = data_exp['particle'].nunique()
-        if drift:
-            data_exp = remove_drift(traj=data_exp, smooth=2,
-                                    save=True, pathway_saving=path,
-                                    name=manip_name + '_' + position)
-            data_exp = data_exp.drop('frame', axis=1)
-            data_exp = data_exp.reset_index()
-        data_all = pd.concat([data_all, data_exp])
-        data_all = data_all.reset_index()
-        data_all = data_all.drop('index', axis=1)
-        print(manip_name, " : ", data_exp['particle'].nunique())
-    data_all['condition'] = condition
-    print("Nombre de particules récoltées avant tri: ", data_all['particle'].nunique())
-    # Retour des données concaténées
-    return data_all
-
-
 def calculate_total_path_first_frames(dataframe, first_n_frames=10):
     """
-    Calculate the total path length traveled by each cell over its first N frames.
+    Calculate the total path length traveled by each particle over its first N frames.
 
-    :param dataframe: DataFrame containing cell tracking data with 'x', 'y', 'frame', 'particle' columns.
-    :param first_n_frames: Number of first frames to consider for each cell.
-    :return: DataFrame with total path length for the first N frames added.
+    Parameters:
+    - dataframe : pd.DataFrame
+        DataFrame containing tracking data with at least 'x', 'y', 'frame', and 'particle' columns.
+    - first_n_frames : int, optional
+        Number of first frames to consider for each particle (default is 10).
+
+    Returns:
+    - dataframe : pd.DataFrame
+        DataFrame with an added column for total path length over the first N frames.
     """
     # Sorting the dataframe
     dataframe_sorted = dataframe.sort_values(by=['particle', 'frame'])
@@ -272,28 +207,25 @@ def calculate_total_path_first_frames(dataframe, first_n_frames=10):
 
 def select_data(DATA, nbr_frame_min):
     """
-    Select the datas we want to study.
+    Filters the trajectory data based on a minimum number of frames presence condition.
 
-    Parameters
-    ----------
-    DATA : DataFrame
-        Trajectories.
-    nbr_frame_min : int
+    Parameters:
+    - DATA : pd.DataFrame
+        DataFrame containing trajectory data with columns 'experiment', 'particle', and 'frame'.
+    - nbr_frame_min : int
+        Minimum number of frames a particle must appear in to be retained.
 
-    Returns
-    -------
-    DATA : DataFrame
-        trajectories filtred.
-
+    Returns:
+    - pd.DataFrame
+        Filtered DataFrame containing only particles that appear at least `nbr_frame_min` times.
     """
-    # On compte le nombre de frames pour chaque particule dans chaque expérience
+    # Count the number of frames for each particle in each experiment
     counts = DATA.groupby(['experiment', 'particle']).size()
-    # On fait la liste des particles que l'on souhaite garder, cad qui sont suivies
-    # sur au moins "nbr_frame_min" images.
+
+    # Filter particles appearing at least `nbr_frame_min` times
     particles_to_keep = counts[counts >= nbr_frame_min].reset_index()
     # On récupères les données de ces particules uniquement.
     DATA = DATA.merge(particles_to_keep, on=['experiment', 'particle'])
-
     # On compte le nombre de frames pour chaque expérience
     total_frames_per_experiment = DATA.groupby('experiment')['frame'].nunique()
 
@@ -308,14 +240,6 @@ def select_data(DATA, nbr_frame_min):
 
     # On filtre le DataFrame original pour garder uniquement les particules sélectionnées
     DATA = DATA.merge(filtered_particles, on=['experiment', 'particle'])
-
-    # # ## JE DECIDE DE GARDER UNIQUEMENT LES EXPERIENCES AVEC PLUS DE X FRAMES ####
-    # # Step 1: Identify experiments with max frame > 500
-    # valid_experiments = DATA.groupby('experiment')['frame'].max()
-    # valid_experiments = valid_experiments[valid_experiments > nbr_frame_min].index
-
-    # # Step 2: Filter the DataFrame to keep rows associated with those experiments
-    # DATA = DATA[DATA['experiment'].isin(valid_experiments)]
 
     return DATA
 
@@ -364,15 +288,12 @@ def find_swaps_with_return(data_frame):
 
     for particle, group in grouped:
         group = group.sort_values(by='frame')  # ensure the group is sorted by frame
-
         # Check each point in the trajectory
         for i in range(1, len(group) - 1):
             # We skip the first and last points, as they cannot form a "return" trajectory
-
             prev_point = group.iloc[i - 1]
             current_point = group.iloc[i]
             next_point = group.iloc[i + 1]
-
             # Calculate the distances for the potential out-and-back
             dist_out = np.sqrt((current_point['x'] - prev_point['x'])**2 +
                                (current_point['y'] - prev_point['y'])**2)
@@ -397,25 +318,30 @@ def plot_msd(msd, fps, name="MSD of all frames in function of lag time (s)",
              color_plot: str = 'red', save=False, pathway_saving=None,
              alpha=0.05, linewidth=0.01, img_type='jpg'):
     """
-    Plot the mean square displacement (MSD) for a specific need.
+    Plots the mean square displacement (MSD) of particle trajectories.
 
-    Parameters
-    ----------
-    msd : DataFrame
-        DataFrame containing the MSD values.
-    fps : float
-        Number of frames per second.
-    name : str, optional
-        Title of the plot. Default is "MSD of all frames in function of lag time (s)".
-    save : bool, optional
-        Whether to save the plot or not. Default is False.
-    pathway_saving : str, optional
-        Absolute path to save the plot. Default is None.
+    Parameters:
+    - msd : pd.DataFrame
+        DataFrame containing MSD values with index as lag times.
+    - fps : float
+        Frames per second, used to calculate time scale.
+    - name : str, optional
+        Title for the plot. Defaults to "MSD of all frames in function of lag time (s)".
+    - color_plot : str, optional
+        Color of the plot line.
+    - save : bool, optional
+        If True, the plot will be saved to the specified path.
+    - pathway_saving : str, optional
+        Path where the plot will be saved if `save` is True.
+    - alpha : float, optional
+        Transparency of the plot line.
+    - linewidth : float, optional
+        Width of the plot line.
+    - img_type : str, optional
+        Image file format for saving the plot.
 
-    Returns
-    -------
-    None.
-
+    Returns:
+    - None
     """
     # Get the number of curves from the number of columns in the MSD DataFrame
     nbr_curves = len(msd.columns)
