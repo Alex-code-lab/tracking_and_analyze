@@ -384,7 +384,7 @@ def plot_msd(msd, fps, name="MSD of all frames in function of lag time (s)",
 
     # Save the plot if the "save" parameter is True
     if save:
-        fig.savefig(f"{pathway_saving}{name}." + img_type, format=img_type)
+        fig.savefig(os.path.join(pathway_saving, f"{name}.{img_type}"), format=img_type)
 
 
 def plot_msd_inf_sup(msd_inf, msd_sup, fps,
@@ -1778,7 +1778,7 @@ def plot_displacement(traj: pd.DataFrame, start_end: pd.DataFrame,
     plt.tight_layout()
     plt.show()
     if save and pathway_saving and name:
-        fig_path = f"{pathway_saving}start_end_vs_cumulative_{name}.{img_type}"
+        fig_path = os.path.join(pathway_saving, f"start_end_vs_cumulative_{name}.{img_type}")
         fig.savefig(fig_path, format=img_type)
 
 
@@ -1849,7 +1849,7 @@ def plot_displacement_low_and_high(traj_sup: pd.DataFrame, traj_inf: pd.DataFram
         plt.tight_layout()
         plt.show()
         if save:
-            fig.savefig(f"{pathway_saving}start_end_vs_cumulative_{name}.{img_type}",
+            fig.savefig(os.path.join(pathway_saving, f"start_end_vs_cumulative_{name}.{img_type}"),
                         format=img_type)
 
 
@@ -2570,7 +2570,7 @@ def traj_clustering_with_fit_cutoff(df: pd.DataFrame,
         # Adjust the spacing of the plot
         fig.tight_layout()
         if save:
-            fig.savefig(pathway_fig + 'compute_cutoff.' + img_type, format=img_type)
+            fig.savefig(os.path.join(pathway_fig, f"compute_cutoff.{img_type}"), format=img_type)
 
         #  NEW PLOT FOR sorted cells
         Data_slow = df[df['particle'].isin(Parts_slow)]
@@ -2621,7 +2621,7 @@ def traj_clustering_with_fit_cutoff(df: pd.DataFrame,
         fig.suptitle(f"Results for {name}", fontsize=25)
         fig.tight_layout()
         if save:
-            fig.savefig(pathway_fig + f'MSD slopes {name}.' + img_type, format=img_type)
+            fig.savefig(os.path.join(pathway_fig, f'MSD_slopes_{name}.{img_type}'), format=img_type)
     return S_slow, S_fast, Parts_slow, Parts_fast, cutoff
 
 
@@ -2891,41 +2891,13 @@ def plot_datas(x_values: List[Union[float, int]],
                path_save_pic: Optional[str] = None,
                parameters_plot: Optional[dict] = {'color': 'green',
                                                   'linewidth': 0.5,
-                                                  'linestyle': 'solid',
-                                                  },
+                                                  'linestyle': 'solid'},
                img_type: str = "jpg") -> None:
     """
-    Plot data with the option to save the resulting figure.
+    Plot data with the option to save the resulting figure, creating directories if needed.
 
-    This function creates a line plot of `y_values` against `x_values`,
-    allowing for customization of labels, titles, and axis limits.
-    There is an option to save the figure to a file.
-
-    Parameters
-    ----------
-    x_values (List[Union[float, int]]): The values to be plotted on the x-axis.
-    y_values (List[Union[float, int]]): The values to be plotted on the y-axis.
-    title (str): The title of the plot.
-    x_label (Optional[str]): The label for the x-axis. If None, no label is added.
-    y_label (Optional[str]): The label for the y-axis. If None, no label is added.
-    x_lim (Optional[Union[tuple, list]]): The limits for the x-axis in the form (min, max).
-        If None, defaults are used.
-    y_lim (Optional[Union[tuple, list]]): The limits for the y-axis in the form (min, max).
-        If None, defaults are used.
-    save (bool): If True, saves the figure to the path specified in `path_save_pic`.
-        Default is False.
-    path_save_pic (Optional[str]): The path where the figure should be saved, if `save` is True.
-                                    If None and `save` is True, a ValueError is raised.
-    img_type (str): The file format for saving the image. Default is "jpg".
-
-    Raises
-    ------
-    ValueError: If `save` is True but `path_save_pic` is None,
-    indicating that the save path was not provided.
-
-    Returns
-    -------
-    None: The function does not return anything. It displays or saves a plot.
+    Parameters are as described in the original code, with added functionality
+    for handling missing directories.
     """
     # Create a new figure and axis for the plot
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -2960,11 +2932,25 @@ def plot_datas(x_values: List[Union[float, int]],
     # Save the figure if the save flag is True
     if save:
         if path_save_pic is None:
-            # Raise an error if the path for saving is not provided
             raise ValueError("The saving path is required.")
         else:
-            # Save the figure to the specified path
-            fig.savefig(f"{path_save_pic}title." + img_type, format=img_type)
+            # Ensure the directory exists
+            os.makedirs(path_save_pic, exist_ok=True)
+             # Clean the title to create a valid filename
+            filename = f"{title}.{img_type}"
+            # Replace invalid characters with underscores
+            filename = re.sub(r'[\\/*?:"<>|]', "_", filename)
+            # Additionally, replace spaces with underscores if desired
+            filename = filename.replace(" ", "_")
+            # Remove any remaining problematic characters
+            filename = filename.replace('/', '_')
+            # Save the figure
+             # Build the full path
+            save_path = os.path.join(path_save_pic, filename)
+            # Save the figure
+            fig.savefig(save_path, format=img_type)
+            print(f"Figure saved at: {save_path}")
+            
 
 
 def traj_clustering(df: pd.DataFrame(), imsd: pd.DataFrame(),
