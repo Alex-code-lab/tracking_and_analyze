@@ -1760,7 +1760,7 @@ def plot_displacement(traj: pd.DataFrame, start_end: pd.DataFrame,
     plt.tight_layout()
     plt.show()
     if save and pathway_saving and name:
-        fig_path = f"{pathway_saving}cumulative_displacement_vs_time_{name}.{img_type}"
+        fig_path = os.path.join(pathway_saving, f"cumulative_displacement_vs_time_{name}.{img_type}")
         fig.savefig(fig_path, format=img_type)
 
     # Add the cumulative displacement to start_end DataFrame
@@ -1822,7 +1822,7 @@ def plot_displacement_low_and_high(traj_sup: pd.DataFrame, traj_inf: pd.DataFram
     if save:
         if not pathway_saving:
             pathway_saving = './'
-        fig.savefig(f"{pathway_saving}cumulative_displacement_vs_time_{name}.{img_type}", format=img_type)
+        fig.savefig(os.path.join(pathway_saving, f"cumulative_displacement_vs_time_{name}.{img_type}"), format=img_type)
 
     # Handling start-end vs cumulative displacement
     start_end_sup = start_end.loc[start_end.index.isin(part_coef_sup)]
@@ -2951,7 +2951,6 @@ def plot_datas(x_values: List[Union[float, int]],
             fig.savefig(save_path, format=img_type)
             print(f"Figure saved at: {save_path}")
             
-
 
 def traj_clustering(df: pd.DataFrame(), imsd: pd.DataFrame(),
                     lag_time_fit: int, micronperpixel: float, fps: float):
