@@ -1769,7 +1769,7 @@ def plot_displacement(traj: pd.DataFrame, start_end: pd.DataFrame,
 
     # Plot start-end vs cumulative displacement
     fig, ax = plt.subplots(figsize=(10, 10))
-    ax.scatter(start_end_combined['cumulative displacement [um]'], start_end_combined['start-end [um]'],
+    ax.scatter(start_end_combined['cumulative displacement [um]'], start_end_combined['start_end_distance [um]'],
                marker='+', linewidth=0.5, alpha=alpha, color=color_plot)
     ax.set_xlabel('Cumulative Displacement (um)', fontsize=20)
     ax.set_ylabel('Start-End Displacement (um)', fontsize=20)
