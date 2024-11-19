@@ -350,7 +350,7 @@ def plot_msd(msd, fps, name="MSD of all frames in function of lag time (s)",
     # msd = msd.set_index("lag time [s]")
 
     # Create a new figure and axis object
-    fig, axis = plt.subplots(figsize=(20, 20))
+    fig, axis = plt.subplots(figsize=(12, 12))
 
     # Plot the MSD data on the axis object
     axis.plot(msd, alpha=alpha, linewidth=linewidth, color=color_plot)
@@ -1836,9 +1836,9 @@ def plot_displacement_low_and_high(traj_sup: pd.DataFrame, traj_inf: pd.DataFram
     if not start_end_sup.empty and not start_end_inf.empty:
         fig, ax = plt.subplots(figsize=(10, 10))
         ax.scatter(start_end_sup['cumulative'], start_end_sup['start-end [um]'],
-                   marker='+', linewidth=0.8, alpha=alpha, color='blue')
+                   marker='+', linewidth=1, alpha=alpha, color='red')
         ax.scatter(start_end_inf['cumulative'], start_end_inf['start-end [um]'],
-                   marker='+', linewidth=0.8, alpha=alpha, color='red')
+                   marker='+', linewidth=0.8, alpha=alpha, color='blue')
         ax.set_xlabel('Cumulative displacement (um)', fontsize=20)
         ax.set_ylabel('Start-End displacement (um)', fontsize=20)
         ax.tick_params(axis='both', which='major', labelsize=20)
@@ -2541,7 +2541,7 @@ def traj_clustering_with_fit_cutoff(df: pd.DataFrame,
 
     if plot:
         #  First plot is to present the fit
-        fig, axis = plt.subplots(figsize=(20, 20))
+        fig, axis = plt.subplots(figsize=(12, 12))
         # Largeur des bins
         width = bins[1] - bins[0]
         # Tracer le bar plot
@@ -2585,7 +2585,7 @@ def traj_clustering_with_fit_cutoff(df: pd.DataFrame,
             IM_fast = imsd[Parts_fast]
         else:
             IM_fast = pd.DataFrame()
-        fig, Ax = plt.subplots(nrows=1, ncols=2, figsize=(14, 8))
+        fig, Ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 8))
         # Plot the datas
         if not Data_slow.empty:
             Ax[0].plot(IM_slow.index.values, IM_slow.values, color=color_sup_inf[1],
