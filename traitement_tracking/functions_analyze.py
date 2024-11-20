@@ -363,18 +363,20 @@ def plot_msd(msd, fps, name="MSD of all frames in function of lag time (s)",
     axis.set(xscale="log", yscale="log")
 
     # Set the x-axis label
-    axis.set_xlabel("lag time (s)", fontsize=30)
+    axis.set_xlabel("lag time (log(s))", fontsize=30)
 
     # Set the x-axis label
-    axis.set_ylabel("MSD", fontsize=30)
+    axis.set_ylabel("log (MSD)", fontsize=30)
 
     # Add a text box to the plot with the number of curves
-    textstr = f"nbre curves: {nbr_curves}"
-    props = dict(boxstyle="round", facecolor="wheat", alpha=0.5)
+    textstr = f"n = {nbr_curves}"
+    props = dict(boxstyle="round", facecolor="dimgrey", alpha=0.5)
     axis.text(0.05, 0.95, textstr, transform=axis.transAxes, fontsize=30,
               verticalalignment="top", bbox=props)
 
     axis.tick_params(axis='both', which='major', labelsize=20)
+    axis.grid(which="minor", visible=False)
+    axis.grid(which="major", visible=False)
 
     # Set the title of the plot
     fig.suptitle(name, fontsize=40, fontweight="bold", fontstyle='italic', fontname="Arial")
@@ -1785,7 +1787,7 @@ def plot_displacement(traj: pd.DataFrame, start_end: pd.DataFrame,
 def plot_displacement_low_and_high(traj_sup: pd.DataFrame, traj_inf: pd.DataFrame, part_coef_sup, part_coef_inf,
                                    start_end: pd.DataFrame, alpha: float=0.1, linewidth: float=0.1,
                                    xlim: list=None, ylim: list=None, 
-                                   color_sup_inf: tuple=('red', 'blue'), save=False,
+                                   color_sup_inf: tuple=('blue', 'red'), save=False,
                                    pathway_saving=None, name=None, img_type="jpg"):
     if traj_sup.empty and traj_inf.empty:
         print("Both input dataframes are empty, unable to plot")
@@ -1793,7 +1795,7 @@ def plot_displacement_low_and_high(traj_sup: pd.DataFrame, traj_inf: pd.DataFram
 
     # Plotting cumulative displacement vs time
     fig, ax = plt.subplots(figsize=(10, 10))
-    def plot_group(grouped_df, color, label_prefix):
+    def plot_group(grouped_df, color, label_prefix, alpha):
         for name, group in grouped_df:
             adjusted_time = group['time (min)'] - group['time (min)'].iloc[0]
             ax.plot(adjusted_time, group['cumulative displacement [um]'], 
@@ -1802,11 +1804,11 @@ def plot_displacement_low_and_high(traj_sup: pd.DataFrame, traj_inf: pd.DataFram
 
     if not traj_sup.empty:
         grouped_sup = traj_sup.groupby('particle')
-        plot_group(grouped_sup, color_sup_inf[0], 'High')
+        plot_group(grouped_sup, color_sup_inf[0], 'High', alpha=alpha)
     
     if not traj_inf.empty:
         grouped_inf = traj_inf.groupby('particle')
-        plot_group(grouped_inf, color_sup_inf[1], 'Low')
+        plot_group(grouped_inf, color_sup_inf[1], 'Low', alpha=0.5)
 
     ax.set_xlabel('Time (min)', fontsize=20)
     ax.set_ylabel('Cumulative displacement [um]', fontsize=20)
@@ -1836,9 +1838,9 @@ def plot_displacement_low_and_high(traj_sup: pd.DataFrame, traj_inf: pd.DataFram
     if not start_end_sup.empty and not start_end_inf.empty:
         fig, ax = plt.subplots(figsize=(10, 10))
         ax.scatter(start_end_sup['cumulative'], start_end_sup['start-end [um]'],
-                   marker='+', linewidth=1, alpha=alpha, color='red')
+                   marker='+', linewidth=1, alpha=0.5, color=color_sup_inf[0])
         ax.scatter(start_end_inf['cumulative'], start_end_inf['start-end [um]'],
-                   marker='+', linewidth=0.8, alpha=alpha, color='blue')
+                   marker='+', linewidth=0.8, alpha=alpha, color=color_sup_inf[1])
         ax.set_xlabel('Cumulative displacement (um)', fontsize=20)
         ax.set_ylabel('Start-End displacement (um)', fontsize=20)
         ax.tick_params(axis='both', which='major', labelsize=20)
@@ -2550,15 +2552,15 @@ def traj_clustering_with_fit_cutoff(df: pd.DataFrame,
         # Afficher le plot
         if len(peaks) > 1:
             # Plot
-            axis.plot([bins[peaks[0]], bins[peaks[0]]], [0, np.max(counts)],
-                      label=f'Peak 1 = {round(bins[peaks[0]], 2)}')
-            axis.plot([bins[peaks[1]], bins[peaks[1]]], [0, np.max(counts)],
-                      label=f'Peak 2 = {round(bins[peaks[1]], 2)}')
+            # axis.plot([bins[peaks[0]], bins[peaks[0]]], [0, np.max(counts)],
+            #           label=f'Peak 1 = {round(bins[peaks[0]], 2)}')
+            # axis.plot([bins[peaks[1]], bins[peaks[1]]], [0, np.max(counts)],
+            #           label=f'Peak 2 = {round(bins[peaks[1]], 2)}')
             axis.plot([min_between_peaks, min_between_peaks], [0, np.max(counts)],
                       color='red', label=f'Min {round(min_between_peaks,2)}')
             axis.plot([cutoff, cutoff], [0, np.max(counts)],
                       label=f'min bimodal = {round(cutoff,2)}', color='blue')
-            axis.plot(bins[0:bin_size], bimodal(bins[0:bin_size], *popt), 'r-', label='Fit')
+            # axis.plot(bins[0:bin_size], bimodal(bins[0:bin_size], *popt), 'r-', label='Fit')
             axis.legend(fontsize=30)
             axis.tick_params(axis='both', which='major', labelsize=20)
 
@@ -2597,7 +2599,7 @@ def traj_clustering_with_fit_cutoff(df: pd.DataFrame,
         Ax[0].set_yscale("log")
         Ax[0].set_xlim(15, 70)
         Ax[0].set_ylim(0.01, 1000)
-        Ax[0].set_title("n="+str(len(S)), y=1.0, pad=-8, fontsize=15)
+        # Ax[0].set_title("n="+str(len(S)), y=1.0, pad=-8, fontsize=15)
         Ax[0].set_xlabel('lag time [s]', fontsize=20)
         Ax[0].set_ylabel('IMSD [$\\mu$m$^2$]', fontsize=20)
         Ax[0].tick_params(axis='both', which='major', labelsize=15)
@@ -2618,7 +2620,7 @@ def traj_clustering_with_fit_cutoff(df: pd.DataFrame,
         # Ax[0,1].set_ylim(0,2)
         # Ax[0,1].set_xlabel('IMSD slope')
         # Ax[0,1].set_ylabel('Normalized Counts')
-        fig.suptitle(f"Results for {name}", fontsize=25)
+        fig.suptitle("MSD and slopes for the " +str(len(S)) + "cells" , fontsize=25)
         fig.tight_layout()
         if save:
             fig.savefig(os.path.join(pathway_fig, f'MSD_slopes_{name}.{img_type}'), format=img_type)
@@ -2890,7 +2892,7 @@ def plot_datas(x_values: List[Union[float, int]],
                save: bool = False,
                path_save_pic: Optional[str] = None,
                parameters_plot: Optional[dict] = {'color': 'green',
-                                                  'linewidth': 0.5,
+                                                  'linewidth': 1,
                                                   'linestyle': 'solid'},
                img_type: str = "jpg") -> None:
     """
@@ -2900,7 +2902,7 @@ def plot_datas(x_values: List[Union[float, int]],
     for handling missing directories.
     """
     # Create a new figure and axis for the plot
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(5, 5))
 
     # Create a line plot of y_values against x_values
     ax.plot(x_values, y_values, color=parameters_plot['color'],
