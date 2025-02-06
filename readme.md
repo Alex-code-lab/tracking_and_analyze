@@ -8,7 +8,7 @@ Ce projet a pour objectif d’analyser la motilité des cellules Dictyostelium �
 
 Pour que le traitement se déroule correctement, organisez vos dossiers de la manière suivante :
 
-'''bash
+```bash
 /Chemin/Principal/
 ├── Nom_Expérience_1/
 │      ├── Stack_Original/   ← Images originales au format TIFF
@@ -19,7 +19,7 @@ Pour que le traitement se déroule correctement, organisez vos dossiers de la ma
 │      ├── 8bits/
 │      └── mosaic/
 └── …
-'''
+```
 
 **Convention de nommage :**  
 Chaque dossier d’expérience doit suivre la nomenclature suivante :  
