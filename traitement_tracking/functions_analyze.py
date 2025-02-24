@@ -2616,7 +2616,7 @@ def traj_clustering_with_fit_cutoff(df: pd.DataFrame,
                     bar.set_color(color_sup_inf[0])
             ax.set_xlabel('slope value', fontsize=20)
             ax.set_ylabel('count', fontsize=20)
-        # Ax[0,1].set_xlim(0,2)
+        Ax[1].set_xlim(0,2)
         # Ax[0,1].set_ylim(0,2)
         # Ax[0,1].set_xlabel('IMSD slope')
         # Ax[0,1].set_ylabel('Normalized Counts')
@@ -2998,3 +2998,5 @@ def traj_clustering(df: pd.DataFrame(), imsd: pd.DataFrame(),
     print('# negative slope', len(negative_parts))
 
     return S, Parts
+
+# %%
