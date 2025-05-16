@@ -2594,7 +2594,7 @@ def traj_clustering_with_fit_cutoff(df: pd.DataFrame,
                        alpha=0.1, linewidth=0.1)
         if not Data_fast.empty:
             Ax[0].plot(IM_fast.index.values, IM_fast.values, color=color_sup_inf[0],
-                       alpha=0.1, linewidth=0.1)
+                       alpha=0.5, linewidth=0.1)
         Ax[0].set_xscale("log")
         Ax[0].set_yscale("log")
         Ax[0].set_xlim(15, 70)
