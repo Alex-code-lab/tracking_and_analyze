@@ -1295,7 +1295,6 @@ def gif_and_traj(data: pd.DataFrame(), size_pix: float, condition: str, experime
                         str(PARTICLE_INFOS['particle']) + '.' + img_type, format=img_type)
 
 
-
 def create_cropped_tracking_gif0(datas: pd.DataFrame, target_particle: int,
                                 condition: str, crop_size: int = None, 
                                 dot_size: int = 15, gif: bool = False,
@@ -2415,7 +2414,8 @@ def traj_clustering_with_fit_cutoff(df: pd.DataFrame,
                                     img_type: str = "jpg",
                                     plot: bool = True,
                                     color_sup_inf: Tuple[str, str] = ('red', 'blue'),
-                                    cutoff_default: Optional[float] = None
+                                    cutoff_default: Optional[float] = None,
+                                    lag_time_fit_start: Optional[int] = 0,
                                     ) -> Tuple[List[float], List[float], List[int], List[int], float]:
     """
     Clusters trajectories based on the slope of their mean square displacement (MSD).
@@ -2475,8 +2475,8 @@ def traj_clustering_with_fit_cutoff(df: pd.DataFrame,
     bin_size = binsize
 
     # Pré-calcule Logarithme
-    log_index = np.log10(imsd.index[0:lag_time_fit] + EPSILON)
-    log_imsd = np.log10(imsd.iloc[0:lag_time_fit] + EPSILON)
+    log_index = np.log10(imsd.index[lag_time_fit_start:lag_time_fit] + EPSILON)
+    log_imsd = np.log10(imsd.iloc[lag_time_fit_start:lag_time_fit] + EPSILON)
 
     positive_mask = np.zeros(len(imsd.columns), dtype=bool)
     S = []

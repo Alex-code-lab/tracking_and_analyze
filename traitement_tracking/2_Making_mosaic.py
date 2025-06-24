@@ -344,7 +344,7 @@ def create_mosaic_images_agregat(positions_dir, output_dir):
 manip_names = []
 
 # position_folders = '/Volumes/Labo_Alex_Mac/A_analyser/CytoOne_HL5/to_convert/'
-condition = 'CytoOne_SorC_10x'
+condition = 'CytoOne_HL5_10x'
 position_folders = f'/Users/souchaud/Desktop/A_analyser/{condition}/'
 
 
